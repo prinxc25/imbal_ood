@@ -1,199 +1,231 @@
-import os
+import os, math
 import torch
-from torch.utils.data import DataLoader, TensorDataset
+import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 
-def get_table_data_with_iden_separate_sets(batch_size, data_dir, dataset, oodclass_idx, fold_idx, **kwargs):
 
-    
-    data_path_train = os.path.join(data_dir,dataset, dataset + '_train.npy')
-    features, labels_iden, num_classes = np.load(data_path_train, allow_pickle=True)
-    # converting list to array
-    features = np.asarray(features)
-    features.astype(float)
-    labels_iden = np.asarray(labels_iden)
-    # labels_iden.astype(int)
-    # #labels = labels_iden[:,0]
-    num_classes = np.asarray(num_classes)
-    num_classes.astype(int)
-    n_data = len(labels_iden[:,0])
+# MLP with a Softmax classifier
 
-    for i in range(len(labels_iden)):
-        if labels_iden[i, 0] == oodclass_idx:
-            labels_iden[i, 0] = -1
-        elif labels_iden[i, 0] > oodclass_idx:
-            labels_iden[i, 0] -= 1
+class MLP(nn.Module):
+    def __init__(self, input_size, hidden_sizes, num_classes): # hidden_sizes are no of hidden layers
+        super(MLP, self).__init__()
+        self.input_size = input_size
+        self.hidden_sizes = hidden_sizes[:-1] #---w ekeep hiddensizes-1 as hidden layers and last one as last layer--latent rep.
+        self.latent_size = hidden_sizes[-1]
+        self.num_classes = num_classes
 
-    train_dataset = TensorDataset(torch.Tensor(features), torch.LongTensor(labels_iden))
+        self.build_fe()
+        self.init_fe_weights()
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
- 
+    def build_fe(self):
+        layers = []
+        layer_sizes = [self.input_size] + self.hidden_sizes
+       
+        for i in range(len(layer_sizes)-1):
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(layer_sizes[-1], self.latent_size))
+        layers.append(nn.Linear(self.latent_size, self.num_classes))
+        self.layers = nn.ModuleList(layers)
 
-    #-------------validation -----------------------
-    data_path_val = os.path.join(data_dir,dataset, dataset + '_val.npy')
-    features, labels_iden, num_classes = np.load(data_path_val, allow_pickle=True)
-    # converting list to array
-    features = np.asarray(features)
-    features.astype(float)
-    labels_iden = np.asarray(labels_iden)
-    # labels_iden.astype(int)
-    # #labels = labels_iden[:,0]
-    num_classes = np.asarray(num_classes)
-    num_classes.astype(int)
-    n_data = len(labels_iden[:,0])
+    def init_fe_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
 
-    for i in range(len(labels_iden)):
-        if labels_iden[i, 0] == oodclass_idx:
-            labels_iden[i, 0] = -1
-        elif labels_iden[i, 0] > oodclass_idx:
-            labels_iden[i, 0] -= 1
+    def _forward(self, x):
+        for i, layer in enumerate(self.layers[:-1]):
+            x = layer(x)
+        return x
 
-    test_id_dataset = TensorDataset(torch.Tensor(features), torch.LongTensor(labels_iden))
-    
-    test_id_loader = DataLoader(dataset=test_id_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+    def forward(self, x):
+        out = self._forward(x)
+        score = self.layers[-1](out)
+        return score
 
-    #---------------ood tezt---------------------- ----------------- ----- 
-    data_path_ood = os.path.join(data_dir,dataset, dataset + '_ood.npy')
-    features, labels_iden, num_classes = np.load(data_path_ood, allow_pickle=True)
-    # converting list to array
-    features = np.asarray(features)
-    features.astype(float)
-    labels_iden = np.asarray(labels_iden)
-    # labels_iden.astype(int)
-    # #labels = labels_iden[:,0]
-    num_classes = np.asarray(num_classes)
-    num_classes.astype(int)
-    n_data = len(labels_iden[:,0])
+    def feature_list(self, x):
+        out = self._forward(x)
+        score = self.layers[-1](out)
+        return score, [out]
 
-    for i in range(len(labels_iden)):
-        if labels_iden[i, 0] == oodclass_idx:
-            labels_iden[i, 0] = -1
-        elif labels_iden[i, 0] > oodclass_idx:
-            labels_iden[i, 0] -= 1
-
-    test_ood_dataset = TensorDataset(torch.Tensor(features), torch.LongTensor(labels_iden))
-
-    test_ood_loader = DataLoader(dataset=test_ood_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-
-    return train_loader, test_id_loader, test_ood_loader, len(features[0]), num_classes
+    def intermediate_forward(self, x, layer_index):
+        out = self._forward(x)
+        return out
 
 
+# MLP with a Deep-MCDD classifier  
 
-#----------for without identifiers ------------------------------------
+class MLP_DeepMCDD(nn.Module):
+    def __init__(self, input_size, hidden_sizes, num_classes):
+        super(MLP_DeepMCDD, self).__init__()
+        self.input_size = input_size # shape(784) --- as it is equakl to number of features
+        self.hidden_sizes = hidden_sizes[:-1] # size of hidden layers before the last layer [128 128] as default no of hidden layer is 3
+        # except the last hidden layer
+        self.latent_size = hidden_sizes[-1]# size of the latent representaion = 128
+        self.num_classes = num_classes
 
-def get_table_data_with_iden(batch_size, data_dir, dataset, oodclass_idx, fold_idx, **kwargs):
+        self.centers = torch.nn.Parameter(torch.zeros([num_classes, self.latent_size]), requires_grad=True) # shape(9,128)
+        #-------------- since the dim of latent rep is 128 and no. of in dist. classes are 9 we will have 9 centres in 128 dim.
+        self.alphas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)# shape (9)
+        self.logsigmas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)# shape (9)
+        self.param = torch.nn.Parameter(torch.ones(num_classes), requires_grad=True)
+        self.build_fe()
+        self.init_fe_weights()
 
-    data_path = os.path.join(data_dir, dataset + '.npy')
-    features, labels_iden, num_classes = np.load(data_path, allow_pickle=True)
-    # converting list to array
-    features = np.asarray(features)
-    features.astype(float)
-    labels_iden = np.asarray(labels_iden)
-    labels_iden.astype(int)
-    #labels = labels_iden[:,0]
-    num_classes = np.asarray(num_classes)
-    num_classes.astype(int)
-    n_data = len(labels_iden[:,0])
+    def build_fe(self):
+        layers = []
+        layer_sizes = [self.input_size] + self.hidden_sizes ## [784] + [128, 128] = [784. 128, 128]
+       
+        for i in range(len(layer_sizes)-1):# len(layer_sizes) = 3 so for i in range 0,1,2--- creating the NN
+            ## linear(784, 128) ->  relu -> linear(128, 128) ->  relul -> linear(128, 128) ->  relu 
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            layers.append(nn.ReLU())
+        #-> linear(128, 128) 
+        layers.append(nn.Linear(layer_sizes[-1], self.latent_size))
+        self.layers = nn.ModuleList(layers) # this is the list of all the layers starting from very first to relu to last latent layer
 
-    id_classes = [c for c in range(num_classes) if c != oodclass_idx]
-    id_indices = {c: [i for i in range(len(labels_iden)) if labels_iden[i, 0] == c] for c in id_classes}
+    def init_fe_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+        nn.init.xavier_uniform_(self.centers)
+        nn.init.zeros_(self.alphas)
+        nn.init.zeros_(self.logsigmas)
+        nn.init.zeros_(self.param)
+    def _forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = layer(x)
+        return x # this must be the latent representation 
 
-    np.random.seed(0)
-    for c in id_classes:
-        np.random.shuffle(id_indices[c])
-    test_id_indices = {c: id_indices[c][int(0.2*fold_idx*len(id_indices[c])):int(0.2*(fold_idx+1)*len(id_indices[c]))] for c in id_classes}
+    def forward(self, x):
+        out_1= self._forward(x) # ----
+        #class_centre = self.centers
+        out = out_1.unsqueeze(dim=1).repeat([1, self.num_classes, 1])
+        scores = torch.sum((out - self.centers)**2, dim=2) / 2 / torch.exp(2 * F.relu(self.logsigmas)) + self.latent_size * F.relu(self.logsigmas)
+        #-- out is of 9* 128 and centres is 9*128 dim--storing centre for each cluster---in first expresion of scores we store euclidean 
+        #-- distance between latent rep and differnt cluster centre
+        # --- and then they divide by sigma and add logsigma --- section 3.1 eqaution 4 --- calculating distance from kth cluster
+        return scores, out_1, out #class_centre
+        #---we are keeping "out" in the feature rep csv---out is of batch_size x 9 x 128 -- basically for each imput it is being repeated
+        # num_class times, 
 
-    id_indices = np.concatenate(list(id_indices.values()))
-    test_id_indices = np.concatenate(list(test_id_indices.values()))
-    train_id_indices = np.array([i for i in id_indices if i not in test_id_indices])
-    ood_indices = [i for i in range(len(labels_iden)) if labels_iden[i,0] == oodclass_idx]
+# MLP with a Soft-MCDD classifier  
 
-    for i in range(len(labels_iden)):
-        if labels_iden[i, 0] == oodclass_idx:
-            labels_iden[i, 0] = -1
-        elif labels_iden[i, 0] > oodclass_idx:
-            labels_iden[i, 0] -= 1
-    #labels_iden 
-    train_dataset = TensorDataset(torch.Tensor(features[train_id_indices]), 
-                                        torch.LongTensor(labels_iden[train_id_indices]))
-    test_id_dataset = TensorDataset(torch.Tensor(features[test_id_indices]), 
-                                        torch.LongTensor(labels_iden[test_id_indices]))
-    test_ood_dataset = TensorDataset(torch.Tensor(features[ood_indices]), 
-                                        torch.LongTensor(labels_iden[ood_indices]))
+class MLP_SoftMCDD(nn.Module):
+    def __init__(self, input_size, hidden_sizes, num_classes, epsilon=0.1):
+        super(MLP_SoftMCDD, self).__init__()
+        self.input_size = input_size
+        self.hidden_sizes = hidden_sizes[:-1]
+        self.latent_size = hidden_sizes[-1]
+        self.num_classes = num_classes
+        self.epsilon = epsilon
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-    test_id_loader = DataLoader(dataset=test_id_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-    test_ood_loader = DataLoader(dataset=test_ood_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+        self.centers = torch.zeros([num_classes, self.latent_size]).cuda()
+        self.radii = torch.ones(num_classes).cuda()
 
-    return train_loader, test_id_loader, test_ood_loader, len(features[0]), num_classes
+        self.build_fe()
+        self.init_fe_weights()
 
-    #----------for without identifiers ------------------------------------
+    def build_fe(self):
+        layers = []
+        layer_sizes = [self.input_size] + self.hidden_sizes
+       
+        for i in range(len(layer_sizes)-1):
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(layer_sizes[-1], self.latent_size))
+        self.layers = nn.ModuleList(layers)
 
-def get_table_data(batch_size, data_dir, dataset, oodclass_idx, fold_idx, **kwargs):
+    def init_fe_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+        nn.init.xavier_uniform_(self.centers)
 
-    data_path = os.path.join(data_dir, dataset + '.npy')
-    features, labels, num_classes = np.load(data_path, allow_pickle=True)
-    # converting list to array
-    features = np.asarray(features)
-    features.astype(float)
-    labels = np.asarray(labels)
-    labels.astype(int)
-    num_classes = np.asarray(num_classes)
-    num_classes.astype(int)
-    n_data = len(labels)
+    def init_centers(self):
+        nn.init.xavier_uniform_(self.centers)
+        self.centers = 10 * self.centers / torch.norm(self.centers, dim=1)
 
-    id_classes = [c for c in range(num_classes) if c != oodclass_idx]
-    id_indices = {c: [i for i in range(len(labels)) if labels[i] == c] for c in id_classes}
+    def update_centers(self, data_loader):
+        class_outputs = {i : [] for i in range(self.num_classes)}
+        centers = torch.zeros([self.num_classes, self.latent_size]).cuda()
 
-    np.random.seed(0)
-    for c in id_classes:
-        np.random.shuffle(id_indices[c])
-    test_id_indices = {c: id_indices[c][int(0.2*fold_idx*len(id_indices[c])):int(0.2*(fold_idx+1)*len(id_indices[c]))] for c in id_classes}
+        with torch.no_grad():
+            for data in data_loader:
+                inputs, labels = data
+                inputs, labels = inputs.cuda(), labels.cuda()
+                outputs = self._forward(inputs)
 
-    id_indices = np.concatenate(list(id_indices.values()))
-    test_id_indices = np.concatenate(list(test_id_indices.values()))
-    train_id_indices = np.array([i for i in id_indices if i not in test_id_indices])
-    ood_indices = [i for i in range(len(labels)) if labels[i] == oodclass_idx]
+                for k in range(self.num_classes):
+                    indices = (labels == k).nonzero().squeeze(dim=1)
+                    class_outputs[k].append(outputs[indices])
 
-    for i in range(len(labels)):
-        if labels[i] == oodclass_idx:
-            labels[i] = -1
-        elif labels[i] > oodclass_idx:
-            labels[i] -= 1
+        for k in range(self.num_classes):
+            class_outputs[k] = torch.cat(class_outputs[k], dim=0)
+            centers[k] = torch.mean(class_outputs[k], dim=0)
 
-    train_dataset = TensorDataset(torch.Tensor(features[train_id_indices]), 
-                                        torch.LongTensor(labels[train_id_indices]))
-    test_id_dataset = TensorDataset(torch.Tensor(features[test_id_indices]), 
-                                        torch.LongTensor(labels[test_id_indices]))
-    test_ood_dataset = TensorDataset(torch.Tensor(features[ood_indices]), 
-                                        torch.LongTensor(labels[ood_indices]))
+        self.centers.data = centers
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-    test_id_loader = DataLoader(dataset=test_id_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-    test_ood_loader = DataLoader(dataset=test_ood_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+    def update_radii(self, data_loader):
+        class_scores = {i : [] for i in range(self.num_classes)}
+        radii = np.zeros(self.num_classes)
 
-    return train_loader, test_id_loader, test_ood_loader, len(features[0]), num_classes
+        with torch.no_grad():
+            for data in data_loader:
+                inputs, labels = data
+                inputs, labels = inputs.cuda(), labels.cuda()
+                scores = self.forward(inputs)
 
-#----------------------------------------------------------------------------- only train and test----------------------
-def get_total_table_data(batch_size, data_dir, dataset, fold_idx, **kwargs):
+                for k in range(self.num_classes):
+                    indices = (labels == k).nonzero().squeeze(dim=1)
+                    class_scores[k].append(torch.sqrt(scores[indices][:, k]))
 
-    data_path = os.path.join(data_dir, dataset + '.npy')
-    features, labels, num_classes = np.load(data_path, allow_pickle=True)
-    n_data = len(labels)
-    id_indices = [i for i in range(len(labels))] 
+        for k in range(self.num_classes):
+            class_scores[k] = torch.cat(class_scores[k], dim=0)
+            radii[k] = np.quantile(class_scores[k].cpu().numpy(), 1 - self.epsilon)
 
-    np.random.seed(0)
-    np.random.shuffle(id_indices)
-    test_id_indices = id_indices[int(0.2*fold_idx*len(id_indices)):int(0.2*(fold_idx+1)*len(id_indices))]
-    train_id_indices = np.array([i for i in id_indices if i not in test_id_indices])
+        self.radii = torch.Tensor(radii).cuda()
 
-    test_dataset = TensorDataset(torch.Tensor(features[test_id_indices]), 
-                                        torch.LongTensor(labels[test_id_indices]))
-    train_dataset = TensorDataset(torch.Tensor(features[train_id_indices]), 
-                                        torch.LongTensor(labels[train_id_indices]))
+    def update_centers_and_radii(self, data_loader):
+        class_outputs = {i : [] for i in range(self.num_classes)}
+        class_scores = {i : [] for i in range(self.num_classes)}
+        centers = torch.zeros([self.num_classes, self.latent_size]).cuda()
+        radii = np.zeros(self.num_classes)
 
-    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+        with torch.no_grad():
+            for data in data_loader:
+                inputs, labels = data
+                inputs, labels = inputs.cuda(), labels.cuda()
+                outputs, scores = self._forward(inputs), self.forward(inputs)
 
-    return train_loader, test_loader
+                for k in range(self.num_classes):
+                    indices = (labels == k).nonzero().squeeze(dim=1)
+                    class_outputs[k].append(outputs[indices])
+                    class_scores[k].append(torch.sqrt(scores[indices][:, k]))
+
+        for k in range(self.num_classes):
+            class_outputs[k] = torch.cat(class_outputs[k], dim=0)
+            class_scores[k] = torch.cat(class_scores[k], dim=0)
+            centers[k] = torch.mean(class_outputs[k], dim=0)
+            radii[k] = np.quantile(class_scores[k].cpu().numpy(), 1 - self.epsilon)
+
+        self.centers.data = centers
+        self.radii = torch.Tensor(radii).cuda()
+
+    def _forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = layer(x)
+        return x
+
+    def forward(self, x):
+        centers1 = self.radii
+        radii1 = self.centers
+        out = self._forward(x)
+        out = out.unsqueeze(dim=1).repeat([1, self.num_classes, 1])
+        scores = torch.sum((out - self.centers)**2, dim=2)
+        return scores, out, centers1 , radii1
 
