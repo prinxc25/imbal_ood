@@ -100,19 +100,12 @@ def main():
             model.train()
             total_loss = 0.0
             total_data = 0
-            for i, (data, labels_iden) in enumerate(train_loader):
+            for i, (data, labels) in enumerate(train_loader):
                 
-                data, labels_iden = data.cuda(), labels_iden.cuda()
-                labels = labels_iden[:,0]
-                # iden1 = labels_iden[:,1]
-                # iden2 = labels_iden[:,2]
-                # iden3 = labels_iden[:,3]
-                # iden4 = labels_iden[:,4]
-                #print(f'shape train of labels :{labels.shape}, of data {data.shape}')
+                data, labels = data.cuda(), labels.cuda()
+
                 dists, out, out_big = model(data) 
-                # conf, _ = torch.min(dists, dim=1)
-                #print(f'confidence shape:{conf.shape}')
-                #centres1 = model.centers
+               
                 radii1 = torch.exp(model.logsigmas)
                 param = torch.exp(model.param)
                 #scores = - dists + model.alphas #----
@@ -144,7 +137,7 @@ def main():
                 #my_out_train = out+labels
                 for j in range(len(out_big)):
                     #labels_list.append(labels[j].squeeze().tolist())
-                    out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+ labels_iden[j,1:].squeeze().tolist() +scores_12[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
+                    out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()] +scores_12[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
             print(f'loss for epoch {epoch} is : {loss}')
             print(f"centre from train: {model.centers}")
             print(f"for train radii:{radii1}, \n alpha : {param}")
@@ -169,16 +162,11 @@ def main():
 
                 #for i, ((data,labels), (data1, labels1)) in enumerate(zip(test_id_loader, test_ood_loader)):
                 #------------------------VAL DATA------------------------------------
-                for i, (data, labels_iden) in enumerate(test_id_loader):
+                for i, (data, labels) in enumerate(test_id_loader):
                     #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
                    
-                    data, labels_iden = data.cuda(), labels_iden.cuda()
-                    labels = labels_iden[:,0]
-                    # iden1 = labels_iden[:,1]
-                    # iden2 = labels_iden[:,2]
-                    # iden3 = labels_iden[:,3]
-                    # iden4 = labels_iden[:,4]
-                    #print(f'shape val of labels :{labels.shape}, of data {data.shape}')
+                    data, labels = data.cuda(), labels.cuda()
+                    
                     dists, out, out_big = model(data)
                     #conf, _ = torch.min(dists, dim=1)
                     #print(f'confidence shape:{conf.shape}')
@@ -199,7 +187,7 @@ def main():
                     for j in range(len(out_big)):
                     #labels_list_test.append([j].squeeze().tolist())
                         #my_out_test_id = out+labels
-                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()]+ labels_iden[j,1:].squeeze().tolist() + scores_12[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
+                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores_12[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
                     #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
                    
                 print(f"centre from val: {model.centers}")
@@ -207,13 +195,9 @@ def main():
 
             correct1, total1 = 0, 0
             out_feat_test1 = []
-            for i, (data1, labels_iden1) in enumerate(test_ood_loader):
-                data1, labels_iden1 = data1.cuda(), labels_iden1.cuda()
-                labels1 = labels_iden1[:,0]
-                # iden1_1 = labels_iden1[:,1]
-                # iden2_2 = labels_iden1[:,2]
-                # iden2_3 = labels_iden1[:,3]
-                # iden2_4 = labels_iden1[:,4]
+            for i, (data1, labels1) in enumerate(test_ood_loader):
+                data1, labels1 = data1.cuda(), labels1.cuda()
+                
                 #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
                 dists1, out1, out_big1 = model(data1)
                 #conf1, _ = torch.min(dists1, dim=1)
@@ -227,7 +211,7 @@ def main():
                 conf1, _ = torch.max(scores_121, dim=1)
                 #conf1, _ = torch.max(scores1, dim=1)
                 #_, predicted1 = torch.max(scores1, 1)
-                predicted1= -1 + torch.zeros(len(labels_iden1[:,0]), dtype=torch.int64) # inittializing everything as -1
+                predicted1= -1 + torch.zeros(len(labels1[:,0]), dtype=torch.int64) # inittializing everything as -1
                 for i in range(len(scores1)):
                     if torch.max(scores1[i]) >= 0:
                         predicted1[i] = torch.argmax(scores1[i])
@@ -239,7 +223,7 @@ def main():
                 #print(out_big1.shape)
                 for j in range(len(out_big1)):
 
-                    out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ labels_iden1[j,1:].squeeze().tolist() + scores_121[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
+                    out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores_121[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
                 #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
             print(f"centre from test: {model.centers}")
             print(f"for test radii:{radii11}, \n alpha : {param1}")
