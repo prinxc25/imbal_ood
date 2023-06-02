@@ -212,7 +212,7 @@ def main():
                 conf1, _ = torch.max(scores_121, dim=1)
                 #conf1, _ = torch.max(scores1, dim=1)
                 #_, predicted1 = torch.max(scores1, 1)
-                predicted1= -1 + torch.zeros(len(labels1[:,0]), dtype=torch.int64) # inittializing everything as -1
+                predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
                 for i in range(len(scores1)):
                     if torch.max(scores1[i]) >= 0:
                         predicted1[i] = torch.argmax(scores1[i])
@@ -300,13 +300,27 @@ def main():
 
 
 
-    print(f'value count for  OOD DATA ')
+    print(f'value count for  TEST DATA ')
     # Get the confusion matrix
     #print(args.dataset)
     #locatio_n = '/output/'+str(args.dataset)
     #df = pd.read_csv(directory+str(args.net_type)+'_'+  str(args.dataset) +'/latent_test_ood_representation.csv')
-    df = pd.read_csv(outdir+'/latent_test_ood_representation.csv')
-    print(f'value count from model is as follows for OOD tst data:\n {df.iloc[:,128+1].value_counts()}')
+    df1 = pd.read_csv(outdir+'/latent_test_ood_representation.csv')
+    df = df1[df[128] != -1]
+    cm = confusion_matrix(np.array(df.iloc[:, 128]), np.array(df.iloc[:, 128+1]))
+    # We will store the results in a dictionary for easy access later
+    per_class_accuracies = {}
+    for idx in range(num_classes - 1):
+        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
+        true_positives = cm[idx, idx]
+        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
+
+    a = precision_recall_fscore_support(np.array(df.iloc[:, 128]), np.array(df.iloc[:, 128+1]), average=None)
+    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
+    for i in range(len(a[0])):
+        print(f'for class {i}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+
+    print(f'value count from model is as follows for OOD test data:\n {df1[df1[128] == -1].iloc[:,128+1].value_counts()}')
 
 
     # #         #---we want to save 
