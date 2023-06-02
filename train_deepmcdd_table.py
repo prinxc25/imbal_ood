@@ -8,8 +8,8 @@ import pandas as pd
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.metrics import confusion_matrix
 from dataloader_table import get_table_data
-from dataloader_table import get_table_data_with_iden
-from dataloader_table import get_table_data_with_iden_separate_sets
+# from dataloader_table import get_table_data_with_iden
+# from dataloader_table import get_table_data_with_iden_separate_sets
 from utils import compute_confscores, compute_metrics, print_ood_results, print_ood_results_total
 #from sklearn.semi_supervised import SelfTrainingClassifier # for Semi-Supervised learning
 #from datetime import date
@@ -54,7 +54,7 @@ def main():
     best_idacc_list, best_oodacc_list = [], []
     for fold_idx in range(args.num_folds):
         
-        train_loader, test_id_loader, test_ood_loader, num_features1, num_classes1 = get_table_data(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
+        train_loader, test_id_loader, test_ood_loader = get_table_data(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
         print(f' shape of complete train data: {len(train_loader.dataset)}, of validation : {len(test_id_loader.dataset)} of ood:{ len(test_ood_loader.dataset)}')
         if args.dataset == 'gas':
             num_classes, num_features = 6, 128
@@ -65,7 +65,7 @@ def main():
         elif args.dataset == 'mnist':
             num_classes, num_features = 10, 784
         else: 
-          num_classes, num_features = num_classes1, num_features1
+          num_classes, num_features = args.num_classes, args.num_features
         print(f' number of classes : {num_classes}, number of features: {num_features}, no of id classes: {num_classes-1}' )
         
         #model_mcdd = models.MLP_DeepMCDD(num_features, args.num_layers*[args.latent_size], num_classes=num_classes-1)
@@ -107,7 +107,7 @@ def main():
                 radii1 = torch.exp(model.logsigmas)
 #                 param = torch.exp(model.param)
 
-                 scores = - dists + model.alphas
+                scores = - dists + model.alphas
 
                 label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                 predicted = torch.argmax(scores, 1)
@@ -150,16 +150,6 @@ def main():
                     label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                     predicted = torch.argmax(scores, 1)
                     conf, _ = torch.max(scores, dim=1)
-
-                    pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
-                    push_loss = ce_loss(scores, labels)
-                    loss = args.reg_lambda * pull_loss + push_loss 
-
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
-            
-                    total_loss += loss.item()
                     
                     for j in range(len(out_big)):
                         #labels_list.append(labels[j].squeeze().tolist())
@@ -188,7 +178,7 @@ def main():
                             out_feat_test1.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
                 
                 print(f"centre from test: {model.centers}")
-                print(f"for test radii:{radii11}")#, \n alpha : {param1}")
+                print(f"for test radii:{radii1}")#, \n alpha : {param1}")
         
 
     ###----------saving model -----------------###
