@@ -97,10 +97,10 @@ class MLP_DeepMCDD(nn.Module):
         return x
 
     def forward(self, x):
-        out = self._forward(x)
-        out = out.unsqueeze(dim=1).repeat([1, self.num_classes, 1])
+        out_1 = self._forward(x)
+        out = out_1.unsqueeze(dim=1).repeat([1, self.num_classes, 1])
         scores = torch.sum((out - self.centers)**2, dim=2) / 2 / torch.exp(2 * F.relu(self.logsigmas)) + self.latent_size * F.relu(self.logsigmas)
-        return scores
+        return scores,out_1, out
 
 
 # MLP with a Soft-MCDD classifier  
