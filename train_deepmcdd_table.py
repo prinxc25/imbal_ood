@@ -9,7 +9,7 @@ from sklearn.metrics import precision_recall_fscore_support
 from sklearn.metrics import confusion_matrix
 from dataloader_table import get_table_data
 # from dataloader_table import get_table_data_with_iden
-# from dataloader_table import get_table_data_with_iden_separate_sets
+from dataloader_table import get_table_data_with_iden_separate_sets
 from utils import compute_confscores, compute_metrics, print_ood_results, print_ood_results_total
 #from sklearn.semi_supervised import SelfTrainingClassifier # for Semi-Supervised learning
 #from datetime import date
@@ -18,8 +18,8 @@ from utils import compute_confscores, compute_metrics, print_ood_results, print_
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mnist')
 parser.add_argument('--net_type', required=True, help='mlp')
-parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
-parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
+# parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
+# parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
 parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
@@ -54,7 +54,7 @@ def main():
     best_idacc_list, best_oodacc_list = [], []
     for fold_idx in range(args.num_folds):
         
-        train_loader, test_id_loader, test_ood_loader = get_table_data(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
+        train_loader, test_id_loader, test_ood_loader, num_features1, num_classes1 = get_table_data_with_iden_separate_sets(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
         print(f' shape of complete train data: {len(train_loader.dataset)}, of validation : {len(test_id_loader.dataset)} of ood:{ len(test_ood_loader.dataset)}')
         if args.dataset == 'gas':
             num_classes, num_features = 6, 128
@@ -65,7 +65,9 @@ def main():
         elif args.dataset == 'mnist':
             num_classes, num_features = 10, 784
         else: 
-          num_classes, num_features = args.num_classes, args.num_features
+            num_classes, num_features = num_classes1, num_features1
+#           num_classes, num_features = args.num_classes, args.num_features
+
         print(f' number of classes : {num_classes}, number of features: {num_features}, no of id classes: {num_classes-1}' )
         
         #model_mcdd = models.MLP_DeepMCDD(num_features, args.num_layers*[args.latent_size], num_classes=num_classes-1)
@@ -213,11 +215,12 @@ def main():
     #--------------getting accurtacy ---precison _f1 score and recall------------
     #---------for train data--------------------
     print(f'accuracy, precison, recall, anf f1 score for TRAIN DATA')
+    hidden_size = 128
     # Get the confusion matrix
     #directory = 'C:/Users/e117907/OneDrive - Mastercard/Desktop/Semi_supervised/DeepMCDD-master/output/'
     # df = pd.read_csv(directory+ str(args.net_type)+'_'+ str(args.dataset) +'/latent_train_representation.csv')
     df = pd.read_csv(outdir+'/latent_train_representation.csv')
-    cm = confusion_matrix(np.array(df.iloc[:, 128]), np.array(df.iloc[:, 128+1]))
+    cm = confusion_matrix(np.array(df.iloc[:,  hidden_size]), np.array(df.iloc[:,  hidden_size+1]))
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
     for idx in range(num_classes - 1):
@@ -225,7 +228,7 @@ def main():
         true_positives = cm[idx, idx]
         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
 
-    a = precision_recall_fscore_support(np.array(df.iloc[:, 128]), np.array(df.iloc[:, 128+1]), average=None)
+    a = precision_recall_fscore_support(np.array(df.iloc[:,  hidden_size]), np.array(df.iloc[:,  hidden_size+1]), average=None)
     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
     for i in range(len(a[0])):
         print(f'for class {i}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
@@ -236,7 +239,7 @@ def main():
     #print(args.dataset)
     #locatio_n = '/output/'+str(args.dataset)
     df = pd.read_csv(outdir + '/latent_val_representation.csv')
-    cm = confusion_matrix(np.array(df.iloc[:, 128]), np.array(df.iloc[:, 128+1]))
+    cm = confusion_matrix(np.array(df.iloc[:,  hidden_size]), np.array(df.iloc[:,  hidden_size+1]))
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
     for idx in range(num_classes - 1):
@@ -244,21 +247,34 @@ def main():
         true_positives = cm[idx, idx]
         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
 
-    a = precision_recall_fscore_support(np.array(df.iloc[:, 128]), np.array(df.iloc[:, 128+1]), average=None)
+    a = precision_recall_fscore_support(np.array(df.iloc[:,  hidden_size]), np.array(df.iloc[:,  hidden_size+1]), average=None)
     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
     for i in range(len(a[0])):
         print(f'for class {i}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
 
 
 
-    print(f'value count for  OOD DATA ')
+    print(f'value count for  TEST DATA ')
     # Get the confusion matrix
     #print(args.dataset)
     #locatio_n = '/output/'+str(args.dataset)
     #df = pd.read_csv(directory+str(args.net_type)+'_'+  str(args.dataset) +'/latent_test_ood_representation.csv')
-    df = pd.read_csv(outdir+'/latent_test_ood_representation.csv')
-    print(f'value count from model is as follows for OOD tst data:\n {df.iloc[:,128+1].value_counts()}')
+    df1 = pd.read_csv(outdir+'/latent_test_ood_representation.csv')
+    df = df1[df.iloc[:,hidden_size] != -1]
+    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]))
+    # We will store the results in a dictionary for easy access later
+    per_class_accuracies = {}
+    for idx in range(num_classes - 1):
+        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
+        true_positives = cm[idx, idx]
+        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
 
+    a = precision_recall_fscore_support(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
+    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
+    for i in range(len(a[0])):
+        print(f'for class {i}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+
+    print(f'value count from model is as follows for OOD test data:\n {df1[df1.iloc[:,hidden_size] == -1].iloc[:,hidden_size+1].value_counts()}')
 
     # #         #---we want to save 
     #         best_idacc = max(idacc_list)
