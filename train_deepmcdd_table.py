@@ -54,7 +54,7 @@ def main():
     best_idacc_list, best_oodacc_list = [], []
     for fold_idx in range(args.num_folds):
         
-        train_loader, test_id_loader, test_ood_loader = get_table_data(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
+        train_loader, test_id_loader, test_ood_loader, num_features1, num_classes1 = get_table_data(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
         print(f' shape of complete train data: {len(train_loader.dataset)}, of validation : {len(test_id_loader.dataset)} of ood:{ len(test_ood_loader.dataset)}')
         if args.dataset == 'gas':
             num_classes, num_features = 6, 128
@@ -65,7 +65,7 @@ def main():
         elif args.dataset == 'mnist':
             num_classes, num_features = 10, 784
         else: 
-          num_classes, num_features = args.num_classes, args.num_features
+          num_classes, num_features = num_classes1, num_features1
         print(f' number of classes : {num_classes}, number of features: {num_features}, no of id classes: {num_classes-1}' )
         
         #model_mcdd = models.MLP_DeepMCDD(num_features, args.num_layers*[args.latent_size], num_classes=num_classes-1)
@@ -103,46 +103,32 @@ def main():
             for i, (data, labels_iden) in enumerate(train_loader):
                 
                 data, labels = data.cuda(), labels_iden.cuda()
-                #print(f'shape train of labels :{labels.shape}, of data {data.shape}')
                 dists, out, out_big = model(data) 
-                # conf, _ = torch.min(dists, dim=1)
-                #print(f'confidence shape:{conf.shape}')
-                #centres1 = model.centers
                 radii1 = torch.exp(model.logsigmas)
-                param = torch.exp(model.param)
-                #scores = - dists + model.alphas #----
-                scores = - torch.abs(dists) + torch.mul(param,radii1) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
-                #conf, _ = torch.max(scores, dim=1)
-                #print(scores)
-                #_, predicted = torch.argmax(scores, 1)
-                predicted = torch.argmax(scores, 1)
-                #print(f'shape train of out feature {out_big.shape}, of predicted {predicted.shape}')
-                scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)#---normalizing for scores to be of probability nature
-                conf, _ = torch.max(scores_12, dim=1)
+#                 param = torch.exp(model.param)
+
+                 scores = - dists + model.alphas
+
                 label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
-                #print(label_mask)
-                #my_out = torch.mul(label_mask, (dists+centr))
-                my_out = torch.mul(label_mask,dists)
-                pull_loss1 = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
-                push_loss1 = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(args.reg_lambda,  dists)), dim=1))
-                #push_loss1 = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(1, torch.mul(torch.abs(model.alphas), dists))), dim=1)) #---this is working fine as of now -- push lloss
-                pull_loss2 = ce_loss(scores_12, labels)#---the probem is happening here----scores are negative tooo -- pull loss
-                #loss = args.reg_lambda * pull_loss + push_loss 
-                loss =  pull_loss1 + push_loss1 + pull_loss2 
+                predicted = torch.argmax(scores, 1)
+                conf, _ = torch.max(scores, dim=1)
+
+                pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
+                push_loss = ce_loss(scores, labels)
+                loss = args.reg_lambda * pull_loss + push_loss 
+
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                total_data = total_data+ len(labels)
+        
                 total_loss += loss.item()
-                #print(len(out))
-                #if epoch == 9:
-                #my_out_train = out+labels
+
                 for j in range(len(out_big)):
                     #labels_list.append(labels[j].squeeze().tolist())
-                    out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()] +scores_12[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
+                    out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
             print(f'loss for epoch {epoch} is : {loss}')
             print(f"centre from train: {model.centers}")
-            print(f"for train radii:{radii1}, \n alpha : {param}")
+            print(f"for train radii:{radii1}")#, \n alpha : {param}")
 
             model.eval()
             with torch.no_grad():
@@ -151,86 +137,59 @@ def main():
                 #correct1, total1 = 0, 0
                 out_feat_test = []
 
-                
-                # dataloader_iterator = iter(test_id_loader)
-                
-                # for i, (data,labels) in enumerate(test_ood_loader):
-
-                #     try:
-                #         data1, labels1 = next(dataloader_iterator) # 
-                #     except StopIteration:
-                #         dataloader_iterator = iter(test_id_loader)
-                #         data1, labels1 = next(dataloader_iterator)
-
-                #for i, ((data,labels), (data1, labels1)) in enumerate(zip(test_id_loader, test_ood_loader)):
-                #------------------------VAL DATA------------------------------------
                 for i, (data, labels_iden) in enumerate(test_id_loader):
                     #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
-                   
                     data, labels = data.cuda(), labels_iden.cuda()
                     
-                    #print(f'shape val of labels :{labels.shape}, of data {data.shape}')
-                    dists, out, out_big = model(data)
-                    #conf, _ = torch.min(dists, dim=1)
-                    #print(f'confidence shape:{conf.shape}')
-                    centers_c = model.centers
-                    #scores = - dists + model.alphas
-                    radii1 = radii1
-                    param = param
-                    scores = - torch.abs(dists) + torch.mul(param,radii1) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
-                    scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)
-                    conf, _ = torch.max(scores_12, dim=1)
-                    #conf, _ = torch.max(scores, dim=1)
-                    # _, predicted = torch.argmax(scores, 1)
+                    dists, out, out_big = model(data) 
+                    radii1 = torch.exp(model.logsigmas)
+#                     param = torch.exp(model.param)
+
+                    scores = - dists + model.alphas
+
+                    label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                     predicted = torch.argmax(scores, 1)
-                    #print(f'shape val of out feature {out_big.shape}, of predicted {predicted.shape}')
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
+                    conf, _ = torch.max(scores, dim=1)
+
+                    pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
+                    push_loss = ce_loss(scores, labels)
+                    loss = args.reg_lambda * pull_loss + push_loss 
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+            
+                    total_loss += loss.item()
                     
                     for j in range(len(out_big)):
-                    #labels_list_test.append([j].squeeze().tolist())
-                        #my_out_test_id = out+labels
-                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores_12[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
-                    #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
-                   
+                        #labels_list.append(labels[j].squeeze().tolist())
+                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
                 print(f"centre from val: {model.centers}")
-                print(f"for validation radii:{radii1}, \n alpha : {param}")
+                print(f"for validation radii:{radii1}")#, \n alpha : {param}")
 
-            correct1, total1 = 0, 0
-            out_feat_test1 = []
-            for i, (data1, labels_iden1) in enumerate(test_ood_loader):
-                data1, labels1 = data1.cuda(), labels_iden1.cuda()
-               
-                #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
-                dists1, out1, out_big1 = model(data1)
-                #conf1, _ = torch.min(dists1, dim=1)
-                #print(f'confidence shape:{conf1.shape}')
-                #centers_c1 = model.centers
-                #scores1 = - dists1 + model.alphas
-                radii11 = radii1
-                param1 = param
-                scores1 = -torch.abs(dists1) +torch.mul(param1,radii11) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
-                scores_121 = torch.exp(torch.div(scores1, torch.mul(param1,radii11))-1)
-                conf1, _ = torch.max(scores_121, dim=1)
-                #conf1, _ = torch.max(scores1, dim=1)
-                #_, predicted1 = torch.max(scores1, 1)
-                predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
-                for i in range(len(scores1)):
-                    if torch.max(scores1[i]) >= 0:
-                        predicted1[i] = torch.argmax(scores1[i])
-                #print(f'shape ood of out feature {out_big1.shape}, of predicted {predicted1.shape}')#, {out1.shape}')
-                # total1 += labels1.size(0)
-                # correct1 += (predicted1 == labels1).sum().item()
-                #for i in range(num_classes[0]):
-                #my_out_test_ood = out1+predicted1
-                #print(out_big1.shape)
-                for j in range(len(out_big1)):
+                correct1, total1 = 0, 0
+                out_feat_test1 = []
+                for i, (data, labels_iden) in enumerate(test_id_loader):
+                        #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
+                        data, labels = data.cuda(), labels_iden.cuda()
+                        
+                        dists, out, out_big = model(data) 
+                        radii1 = torch.exp(model.logsigmas)
+#                         param = torch.exp(model.param)
 
-                    out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores_121[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
-                #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
-            print(f"centre from test: {model.centers}")
-            print(f"for test radii:{radii11}, \n alpha : {param1}")
-    
+                        scores = - dists + model.alphas
+
+                        label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
+                        predicted = torch.argmax(scores, 1)
+                        conf, _ = torch.max(scores, dim=1)
+
+                        for j in range(len(out_big)):
+                            #labels_list.append(labels[j].squeeze().tolist())
+                            out_feat_test1.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
+                
+                print(f"centre from test: {model.centers}")
+                print(f"for test radii:{radii11}")#, \n alpha : {param1}")
+        
 
     ###----------saving model -----------------###
     torch.save(model, outdir+'model_saved'+str(args.dataset)+'.pt')
