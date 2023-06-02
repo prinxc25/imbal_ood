@@ -212,59 +212,26 @@ def main():
     f.close()
 
     
-    #--------------getting accurtacy ---precison _f1 score and recall------------
-    #---------for train data--------------------
-    print(f'accuracy, precison, recall, anf f1 score for TRAIN DATA')
+     #---------for train data--------------------
     hidden_size = 128
+    print(f'accuracy, precison, recall, anf f1 score for TRAIN DATA')
     # Get the confusion matrix
     #directory = 'C:/Users/e117907/OneDrive - Mastercard/Desktop/Semi_supervised/DeepMCDD-master/output/'
     # df = pd.read_csv(directory+ str(args.net_type)+'_'+ str(args.dataset) +'/latent_train_representation.csv')
     df = pd.read_csv(outdir+'/latent_train_representation.csv')
-    cm = confusion_matrix(np.array(df.iloc[:,  hidden_size]), np.array(df.iloc[:,  hidden_size+1]))
+    df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
+    
+    col = list(df.columns)
+    print(f'value count for train label {df[col[hidden_size]].value_counts()}')
+    print(f'value count for train predicted {df[col[hidden_size + 1]].value_counts()}')
+    label = list(df[col[hidden_size].unique())
+    label.sort()
+    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), labels = label)
+    print(cm
+    )
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
-    for idx in range(num_classes - 1):
-        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
-        true_positives = cm[idx, idx]
-        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
-
-    a = precision_recall_fscore_support(np.array(df.iloc[:,  hidden_size]), np.array(df.iloc[:,  hidden_size+1]), average=None)
-    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
-    for i in range(len(a[0])):
-        print(f'for class {i}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
-
-
-    print(f'accuracy, precison, recall, anf f1 score for VALIDATION DATA ')
-    # Get the confusion matrix
-    #print(args.dataset)
-    #locatio_n = '/output/'+str(args.dataset)
-    df = pd.read_csv(outdir + '/latent_val_representation.csv')
-    cm = confusion_matrix(np.array(df.iloc[:,  hidden_size]), np.array(df.iloc[:,  hidden_size+1]))
-    # We will store the results in a dictionary for easy access later
-    per_class_accuracies = {}
-    for idx in range(num_classes - 1):
-        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
-        true_positives = cm[idx, idx]
-        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
-
-    a = precision_recall_fscore_support(np.array(df.iloc[:,  hidden_size]), np.array(df.iloc[:,  hidden_size+1]), average=None)
-    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
-    for i in range(len(a[0])):
-        print(f'for class {i}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
-
-
-
-    print(f'value count for  TEST DATA ')
-    # Get the confusion matrix
-    #print(args.dataset)
-    #locatio_n = '/output/'+str(args.dataset)
-    #df = pd.read_csv(directory+str(args.net_type)+'_'+  str(args.dataset) +'/latent_test_ood_representation.csv')
-    df1 = pd.read_csv(outdir+'/latent_test_ood_representation.csv')
-    df = df1[df.iloc[:,hidden_size] != -1]
-    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]))
-    # We will store the results in a dictionary for easy access later
-    per_class_accuracies = {}
-    for idx in range(num_classes - 1):
+    for idx in range(label):
         true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
         true_positives = cm[idx, idx]
         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
@@ -272,9 +239,61 @@ def main():
     a = precision_recall_fscore_support(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
     for i in range(len(a[0])):
-        print(f'for class {i}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+        print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
 
-    print(f'value count from model is as follows for OOD test data:\n {df1[df1.iloc[:,hidden_size] == -1].iloc[:,hidden_size+1].value_counts()}')
+    # -----------for val data -----------ique
+    print(f'accuracy, precison, recall, anf f1 score for VALIDATION DATA ')
+    # Get the confusion matrix
+    #print(args.dataset)
+    #locatio_n = '/output/'+str(args.dataset)
+    df = pd.read_csv(outdir + '/latent_val_representation.csv')
+    df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
+    col = list(df.columns)
+    print(f'value count for val label {df[col[hidden_size]].value_counts()}')
+    print(f'value count for val predicted {df[col[hidden_size + 1]].value_counts()}')
+    label = list(df[col[hidden_size].unique())
+    label.sort()
+    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
+    print(cm)
+    # We will store the results in a dictionary for easy access later
+    per_class_accuracies = {}
+    for idx in range(label):
+        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
+        true_positives = cm[idx, idx]
+        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
+
+    a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
+    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
+    for i in range(len(a[0])):
+        print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+
+
+    #=========for test data===============
+    print(f'value count for  TEST DATA ')
+    # Get the confusion matrix
+    #print(args.dataset)
+    #locatio_n = '/output/'+str(args.dataset)
+    #df = pd.read_csv(directory+str(args.net_type)+'_'+  str(args.dataset) +'/latent_test_ood_representation.csv')
+    df= pd.read_csv(outdir+'/latent_test_ood_representation.csv')
+    df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
+    col = list(df.columns)
+    print(f'value count for test label {df[col[hidden_size]].value_counts()}')
+    print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
+    label = list(df[col[hidden_size].unique())
+    label.sort()
+    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
+    print(cm)
+    # We will store the results in a dictionary for easy access later
+    per_class_accuracies = {}
+    for idx in range(label):
+        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
+        true_positives = cm[idx, idx]
+        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
+
+    a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
+    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
+    for i in range(len(a[0])):
+        print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
 
     # #         #---we want to save 
     #         best_idacc = max(idacc_list)
