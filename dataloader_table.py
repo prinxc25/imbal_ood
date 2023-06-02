@@ -3,6 +3,83 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 
+
+
+#----------for without identifiers ---- and separate files --------------------------------
+
+def get_table_data_with_iden_separate_sets(batch_size, data_dir, dataset, oodclass_idx, fold_idx, **kwargs):
+
+    
+    data_path_train = os.path.join(data_dir,dataset, dataset + '_train.npy')
+    features, labels, num_classes = np.load(data_path_train, allow_pickle=True)
+    # converting list to array
+    features = np.asarray(features)
+    features.astype(float)
+    labels = np.asarray(labels)
+    labels.astype(int)
+    num_classes = np.asarray(num_classes)
+    num_classes.astype(int)
+    n_data = len(labels)
+
+    for i in range(len(labels)):
+        if labels[i] == oodclass_idx:
+            labels[i] = -1
+        elif labels[i] > oodclass_idx:
+            labels[i] -= 1
+
+    train_dataset = TensorDataset(torch.Tensor(features), torch.LongTensor(labels))
+
+    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+ 
+
+    #-------------validation -----------------------
+    data_path_val = os.path.join(data_dir,dataset, dataset + '_val.npy')
+    features, labels, num_classes = np.load(data_path_val, allow_pickle=True)
+    # converting list to array
+    features = np.asarray(features)
+    features.astype(float)
+    labels = np.asarray(labels)
+    labels.astype(int)
+    # #labels = labels_iden[:,0]
+    num_classes = np.asarray(num_classes)
+    num_classes.astype(int)
+    n_data = len(labels)
+
+    for i in range(len(labels)):
+        if labels[i] == oodclass_idx:
+            labels[i] = -1
+        elif labels[i] > oodclass_idx:
+            labels[i] -= 1
+
+    test_id_dataset = TensorDataset(torch.Tensor(features), torch.LongTensor(labels))
+    
+    test_id_loader = DataLoader(dataset=test_id_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+    #---------------ood test---------------------- ----------------- ----- 
+    data_path_ood = os.path.join(data_dir,dataset, dataset + '_test.npy')
+    features, labels, num_classes = np.load(data_path_ood, allow_pickle=True)
+    # converting list to array
+    features = np.asarray(features)
+    features.astype(float)
+    labels = np.asarray(labels)
+    labels.astype(int)
+    num_classes = np.asarray(num_classes)
+    num_classes.astype(int)
+    n_data = len(labels)
+
+    for i in range(len(labels)):
+        if labels[i] == oodclass_idx:
+            labels[i] = -1
+        elif labels[i] > oodclass_idx:
+            labels[i] -= 1
+
+    test_ood_dataset = TensorDataset(torch.Tensor(features), torch.LongTensor(labels))
+
+    test_ood_loader = DataLoader(dataset=test_ood_dataset, batch_size=batch_size, shuffle=True, num_workers=1)
+
+    return train_loader, test_id_loader, test_ood_loader, len(features[0]), num_classes
+#------------ the one from deep mcdd---------
+
+
 def get_table_data(batch_size, data_dir, dataset, oodclass_idx, fold_idx, **kwargs):
 
     data_path = os.path.join(data_dir, dataset + '_preproc.npy')
