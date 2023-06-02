@@ -8,10 +8,10 @@ import numpy as np
 # MLP with a Softmax classifier
 
 class MLP(nn.Module):
-    def __init__(self, input_size, hidden_sizes, num_classes):
+    def __init__(self, input_size, hidden_sizes, num_classes): # hidden_sizes are no of hidden layers
         super(MLP, self).__init__()
         self.input_size = input_size
-        self.hidden_sizes = hidden_sizes[:-1]
+        self.hidden_sizes = hidden_sizes[:-1] #---w ekeep hiddensizes-1 as hidden layers and last one as last layer--latent rep.
         self.latent_size = hidden_sizes[-1]
         self.num_classes = num_classes
 
@@ -60,27 +60,31 @@ class MLP(nn.Module):
 class MLP_DeepMCDD(nn.Module):
     def __init__(self, input_size, hidden_sizes, num_classes):
         super(MLP_DeepMCDD, self).__init__()
-        self.input_size = input_size
-        self.hidden_sizes = hidden_sizes[:-1]
-        self.latent_size = hidden_sizes[-1]
+        self.input_size = input_size # shape(784) --- as it is equakl to number of features
+        self.hidden_sizes = hidden_sizes[:-1] # size of hidden layers before the last layer [128 128] as default no of hidden layer is 3
+        # except the last hidden layer
+        self.latent_size = hidden_sizes[-1]# size of the latent representaion = 128
         self.num_classes = num_classes
 
-        self.centers = torch.nn.Parameter(torch.zeros([num_classes, self.latent_size]), requires_grad=True)
-        self.alphas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)
-        self.logsigmas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)
-        
+        self.centers = torch.nn.Parameter(torch.zeros([num_classes, self.latent_size]), requires_grad=True) # shape(9,128)
+        #-------------- since the dim of latent rep is 128 and no. of in dist. classes are 9 we will have 9 centres in 128 dim.
+        self.alphas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)# shape (9)
+        self.logsigmas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)# shape (9)
+        self.param = torch.nn.Parameter(torch.ones(num_classes), requires_grad=True)
         self.build_fe()
         self.init_fe_weights()
 
     def build_fe(self):
         layers = []
-        layer_sizes = [self.input_size] + self.hidden_sizes
+        layer_sizes = [self.input_size] + self.hidden_sizes ## [784] + [128, 128] = [784. 128, 128]
        
-        for i in range(len(layer_sizes)-1):
+        for i in range(len(layer_sizes)-1):# len(layer_sizes) = 3 so for i in range 0,1,2--- creating the NN
+            ## linear(784, 128) ->  relu -> linear(128, 128) ->  relul -> linear(128, 128) ->  relu 
             layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
             layers.append(nn.ReLU())
+        #-> linear(128, 128) 
         layers.append(nn.Linear(layer_sizes[-1], self.latent_size))
-        self.layers = nn.ModuleList(layers)
+        self.layers = nn.ModuleList(layers) # this is the list of all the layers starting from very first to relu to last latent layer
 
     def init_fe_weights(self):
         for m in self.modules():
@@ -90,18 +94,23 @@ class MLP_DeepMCDD(nn.Module):
         nn.init.xavier_uniform_(self.centers)
         nn.init.zeros_(self.alphas)
         nn.init.zeros_(self.logsigmas)
-
+        nn.init.zeros_(self.param)
     def _forward(self, x):
         for i, layer in enumerate(self.layers):
             x = layer(x)
-        return x
+        return x # this must be the latent representation 
 
     def forward(self, x):
-        out = self._forward(x)
-        out = out.unsqueeze(dim=1).repeat([1, self.num_classes, 1])
+        out_1= self._forward(x) # ----
+        #class_centre = self.centers
+        out = out_1.unsqueeze(dim=1).repeat([1, self.num_classes, 1])
         scores = torch.sum((out - self.centers)**2, dim=2) / 2 / torch.exp(2 * F.relu(self.logsigmas)) + self.latent_size * F.relu(self.logsigmas)
-        return scores
-
+        #-- out is of 9* 128 and centres is 9*128 dim--storing centre for each cluster---in first expresion of scores we store euclidean 
+        #-- distance between latent rep and differnt cluster centre
+        # --- and then they divide by sigma and add logsigma --- section 3.1 eqaution 4 --- calculating distance from kth cluster
+        return scores, out_1, out #class_centre
+        #---we are keeping "out" in the feature rep csv---out is of batch_size x 9 x 128 -- basically for each imput it is being repeated
+        # num_class times, 
 
 # MLP with a Soft-MCDD classifier  
 
@@ -213,8 +222,10 @@ class MLP_SoftMCDD(nn.Module):
         return x
 
     def forward(self, x):
+        centers1 = self.radii
+        radii1 = self.centers
         out = self._forward(x)
         out = out.unsqueeze(dim=1).repeat([1, self.num_classes, 1])
         scores = torch.sum((out - self.centers)**2, dim=2)
-        return scores
+        return scores, out, centers1 , radii1
 
