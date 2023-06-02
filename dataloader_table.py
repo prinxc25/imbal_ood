@@ -14,6 +14,7 @@ def get_table_data_with_iden_separate_sets(batch_size, data_dir, dataset, oodcla
     # converting list to array
     features = np.asarray(features)
     features.astype(float)
+    labels = np.asarray(labels)
     labels.astype(int)
     num_classes = np.asarray(num_classes)
     num_classes.astype(int)
@@ -36,6 +37,7 @@ def get_table_data_with_iden_separate_sets(batch_size, data_dir, dataset, oodcla
     # converting list to array
     features = np.asarray(features)
     features.astype(float)
+    labels = np.asarray(labels)
     labels.astype(int)
     # #labels = labels_iden[:,0]
     num_classes = np.asarray(num_classes)
@@ -57,6 +59,7 @@ def get_table_data_with_iden_separate_sets(batch_size, data_dir, dataset, oodcla
     # converting list to array
     features = np.asarray(features)
     features.astype(float)
+    labels = np.asarray(labels)
     labels.astype(int)
     num_classes = np.asarray(num_classes)
     num_classes.astype(int)
