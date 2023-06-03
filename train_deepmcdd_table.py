@@ -108,6 +108,8 @@ def main():
                 dists, out, out_big = model(data)
                 scores = - dists + model.alphas
                 conf, _ = torch.min(dists, dim=1)
+                _, predicted = torch.max(scores, 1)
+
                 label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                 pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
                 push_loss = ce_loss(scores, labels)
@@ -120,8 +122,8 @@ def main():
                     #labels_list.append(labels[j].squeeze().tolist())
                     out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()] +scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
             print(f'loss for epoch {epoch} is : {loss}')
-            print(f"centre from train: {model.centers}")
-            print(f"for train radii:{radii1}, \n alpha : {param}")
+            # print(f"centre from train: {model.centers}")
+            # print(f"for train radii:{radii1}, \n alpha : {param}")
 
             model.eval()
             with torch.no_grad():
@@ -156,11 +158,11 @@ def main():
                     for j in range(len(out_big)):
                     #labels_list_test.append([j].squeeze().tolist())
                         #my_out_test_id = out+labels
-                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores[j,:].squeeze().tolist()] + [conf[j].squeeze().tolist()])
+                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
                     #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
                    
-                print(f"centre from val: {model.centers}")
-                print(f"for validation radii:{radii1}, \n alpha : {param}")
+                # print(f"centre from val: {model.centers}")
+                # print(f"for validation radii:{radii1}, \n alpha : {param}")
 
             correct1, total1 = 0, 0
             out_feat_test1 = []
@@ -170,15 +172,15 @@ def main():
                 #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
                 dists1, out1, out_big1 = model(data1)
                 scores1 = -dists1 + model.alphas
-                _, predicted = torch.max(scores1, 1)
+                _, predicted1 = torch.max(scores1, 1)
                 conf1, _ = torch.min(dists1, dim=1)
                 
                 for j in range(len(out_big1)):
 
-                    out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores_121[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
+                    out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores1[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
                 #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
-            print(f"centre from test: {model.centers}")
-            print(f"for test radii:{radii11}, \n alpha : {param1}")
+            # print(f"centre from test: {model.centers}")
+            # print(f"for test radii:{radii11}, \n alpha : {param1}")
     
 
     ###----------saving model -----------------###
