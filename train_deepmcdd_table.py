@@ -20,6 +20,7 @@ parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mn
 parser.add_argument('--net_type', required=True, help='mlp')
 # parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
 # parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
+parser.add_argument('--conf', required=True,type=float,default = 0.7, help='conf to find ood data points')
 parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
@@ -140,8 +141,8 @@ def main():
                     #labels_list.append(labels[j].squeeze().tolist())
                     out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()] +scores_12[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
             print(f'loss for epoch {epoch} is : {loss}')
-            print(f"centre from train: {model.centers}")
-            print(f"for train radii:{radii1}, \n alpha : {param}")
+#             print(f"centre from train: {model.centers}")
+#             print(f"for train radii:{radii1}, \n alpha : {param}")
 
             model.eval()
             with torch.no_grad():
@@ -191,8 +192,8 @@ def main():
                         out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores_12[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
                     #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
                    
-                print(f"centre from val: {model.centers}")
-                print(f"for validation radii:{radii1}, \n alpha : {param}")
+#                 print(f"centre from val: {model.centers}")
+#                 print(f"for validation radii:{radii1}, \n alpha : {param}")
 
             correct1, total1 = 0, 0
             out_feat_test1 = []
@@ -214,7 +215,7 @@ def main():
                 #_, predicted1 = torch.max(scores1, 1)
                 predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
                 for i in range(len(scores1)):
-                    if torch.max(scores1[i]) >= 0:
+                    if (torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf):
                         predicted1[i] = torch.argmax(scores1[i])
                 #print(f'shape ood of out feature {out_big1.shape}, of predicted {predicted1.shape}')#, {out1.shape}')
                 # total1 += labels1.size(0)
@@ -226,8 +227,8 @@ def main():
 
                     out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores_121[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
                 #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
-            print(f"centre from test: {model.centers}")
-            print(f"for test radii:{radii11}, \n alpha : {param1}")
+#             print(f"centre from test: {model.centers}")
+#             print(f"for test radii:{radii11}, \n alpha : {param1}")
     
 
     ###----------saving model -----------------###
@@ -342,7 +343,8 @@ def main():
     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
     for i in range(len(a[0])):
         print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
-
+    print(f'value count for ood test data points: \n {df[df[col[hidden_size]]== -1][col[hidden_size + 1]].value_counts()}')
+    
     # #         #---we want to save 
     #         best_idacc = max(idacc_list)
     #         best_oodacc = oodacc_list[idacc_list.index(best_idacc)]
