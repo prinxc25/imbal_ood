@@ -295,7 +295,8 @@ def main():
     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
     for i in range(len(a[0])):
         print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
-
+    print(f'value count for ood test data points: \n {df[df[col[hidden_size]]== -1][col[hidden_size + 1]].value_counts()}')
+    
     # #         #---we want to save 
     #         best_idacc = max(idacc_list)
     #         best_oodacc = oodacc_list[idacc_list.index(best_idacc)]
