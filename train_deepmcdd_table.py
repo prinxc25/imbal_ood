@@ -129,8 +129,8 @@ def main():
                     #labels_list.append(labels[j].squeeze().tolist())
                     out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
             print(f'loss for epoch {epoch} is : {loss}')
-            print(f"centre from train: {model.centers}")
-            print(f"for train radii:{radii1}")#, \n alpha : {param}")
+#             print(f"centre from train: {model.centers}")
+#             print(f"for train radii:{radii1}")#, \n alpha : {param}")
 
             model.eval()
             with torch.no_grad():
@@ -156,12 +156,12 @@ def main():
                     for j in range(len(out_big)):
                         #labels_list.append(labels[j].squeeze().tolist())
                         out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
-                print(f"centre from val: {model.centers}")
-                print(f"for validation radii:{radii1}")#, \n alpha : {param}")
+#                 print(f"centre from val: {model.centers}")
+#                 print(f"for validation radii:{radii1}")#, \n alpha : {param}")
 
                 correct1, total1 = 0, 0
                 out_feat_test1 = []
-                for i, (data, labels_iden) in enumerate(test_id_loader):
+                for i, (data, labels_iden) in enumerate(test_ood_loader):
                         #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
                         data, labels = data.cuda(), labels_iden.cuda()
                         
@@ -179,8 +179,8 @@ def main():
                             #labels_list.append(labels[j].squeeze().tolist())
                             out_feat_test1.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
                 
-                print(f"centre from test: {model.centers}")
-                print(f"for test radii:{radii1}")#, \n alpha : {param1}")
+#                 print(f"centre from test: {model.centers}")
+#                 print(f"for test radii:{radii1}")#, \n alpha : {param1}")
         
 
     ###----------saving model -----------------###
@@ -227,8 +227,7 @@ def main():
     label = list(df[col[hidden_size].unique())
     label.sort()
     cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), labels = label)
-    print(cm
-    )
+#     print(cm)
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
     for idx in range(label):
@@ -254,7 +253,7 @@ def main():
     label = list(df[col[hidden_size].unique())
     label.sort()
     cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
-    print(cm)
+#     print(cm)
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
     for idx in range(label):
@@ -282,7 +281,7 @@ def main():
     label = list(df[col[hidden_size].unique())
     label.sort()
     cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
-    print(cm)
+#     print(cm)
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
     for idx in range(label):
