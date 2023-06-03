@@ -272,14 +272,14 @@ def main():
     col = list(df.columns)
     print(f'value count for train label {df[col[hidden_size]].value_counts()}')
     print(f'value count for train predicted {df[col[hidden_size + 1]].value_counts()}')
-    label = list(df[col[hidden_size].unique())
+    label = list(df[col[hidden_size]].unique())
     label.sort()
     cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), labels = label)
     print(cm
     )
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
-    for idx in range(label):
+    for idx in range(len(label)):
         true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
         true_positives = cm[idx, idx]
         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
@@ -299,13 +299,13 @@ def main():
     col = list(df.columns)
     print(f'value count for val label {df[col[hidden_size]].value_counts()}')
     print(f'value count for val predicted {df[col[hidden_size + 1]].value_counts()}')
-    label = list(df[col[hidden_size].unique())
+    label = list(df[col[hidden_size]].unique())
     label.sort()
     cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
     print(cm)
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
-    for idx in range(label):
+    for idx in range(len(label)):
         true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
         true_positives = cm[idx, idx]
         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
@@ -327,13 +327,13 @@ def main():
     col = list(df.columns)
     print(f'value count for test label {df[col[hidden_size]].value_counts()}')
     print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
-    label = list(df[col[hidden_size].unique())
+    label = list(df[col[hidden_size]].unique())
     label.sort()
     cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
     print(cm)
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
-    for idx in range(label):
+    for idx in range(len(label)):
         true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
         true_positives = cm[idx, idx]
         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
