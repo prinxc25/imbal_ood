@@ -217,8 +217,8 @@ def main():
                 for i in range(len(scores1)):
                     if (torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf): # --- positive score means within the cluster,
                         predicted1[i] = torch.argmax(scores1[i])
-                    elif (torch.max(scores1[i]) <= 0) & (conf1[i] > args.conf):
-                        predicted1[i] =  torch.argmax(scores1[i])
+#                     elif (torch.max(scores1[i]) <= 0) & (conf1[i] > args.conf):
+#                         predicted1[i] =  torch.argmax(scores1[i])
                 #print(f'shape ood of out feature {out_big1.shape}, of predicted {predicted1.shape}')#, {out1.shape}')
                 # total1 += labels1.size(0)
                 # correct1 += (predicted1 == labels1).sum().item()
