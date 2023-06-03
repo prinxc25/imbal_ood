@@ -20,7 +20,7 @@ parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mn
 parser.add_argument('--net_type', required=True, help='mlp')
 # parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
 # parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
-parser.add_argument('--conf', required=True,type=float,default = 0.7, help='conf to find ood data points')
+parser.add_argument('--conf', type=float,default = 0.7, help='conf to find ood data points')
 parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
@@ -215,8 +215,10 @@ def main():
                 #_, predicted1 = torch.max(scores1, 1)
                 predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
                 for i in range(len(scores1)):
-                    if (torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf):
+                    if (torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf): # --- positive score means within the cluster,
                         predicted1[i] = torch.argmax(scores1[i])
+                    elif (torch.max(scores1[i]) <= 0) & (conf1[i] > args.conf):
+                        predicted1[i] =  torch.argmax(scores1[i])
                 #print(f'shape ood of out feature {out_big1.shape}, of predicted {predicted1.shape}')#, {out1.shape}')
                 # total1 += labels1.size(0)
                 # correct1 += (predicted1 == labels1).sum().item()
