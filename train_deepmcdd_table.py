@@ -139,7 +139,7 @@ def main():
                 #my_out_train = out+labels
                 for j in range(len(out_big)):
                     #labels_list.append(labels[j].squeeze().tolist())
-                    out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()] +scores_12[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
+                    out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()] +scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
             print(f'loss for epoch {epoch} is : {loss}')
 #             print(f"centre from train: {model.centers}")
 #             print(f"for train radii:{radii1}, \n alpha : {param}")
@@ -189,7 +189,7 @@ def main():
                     for j in range(len(out_big)):
                     #labels_list_test.append([j].squeeze().tolist())
                         #my_out_test_id = out+labels
-                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores_12[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
+                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
                     #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
                    
 #                 print(f"centre from val: {model.centers}")
@@ -215,7 +215,7 @@ def main():
                 #_, predicted1 = torch.max(scores1, 1)
                 predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
                 for i in range(len(scores1)):
-                    if (torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf): # --- positive score means within the cluster,
+                    if ((torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf)) #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
                         predicted1[i] = torch.argmax(scores1[i])
 #                     elif (torch.max(scores1[i]) <= 0) & (conf1[i] > args.conf):
 #                         predicted1[i] =  torch.argmax(scores1[i])
@@ -227,7 +227,7 @@ def main():
                 #print(out_big1.shape)
                 for j in range(len(out_big1)):
 
-                    out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores_121[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
+                    out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores1[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
                 #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
 #             print(f"centre from test: {model.centers}")
 #             print(f"for test radii:{radii11}, \n alpha : {param1}")
