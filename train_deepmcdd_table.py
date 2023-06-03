@@ -159,25 +159,25 @@ def main():
 #                 print(f"centre from val: {model.centers}")
 #                 print(f"for validation radii:{radii1}")#, \n alpha : {param}")
 
-                correct1, total1 = 0, 0
-                out_feat_test1 = []
-                for i, (data, labels_iden) in enumerate(test_ood_loader):
-                        #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
-                        data, labels = data.cuda(), labels_iden.cuda()
+#                 correct1, total1 = 0, 0
+#                 out_feat_test1 = []
+#                 for i, (data, labels_iden) in enumerate(test_ood_loader):
+#                         #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
+#                         data, labels = data.cuda(), labels_iden.cuda()
                         
-                        dists, out, out_big = model(data) 
-                        radii1 = torch.exp(model.logsigmas)
-#                         param = torch.exp(model.param)
+#                         dists, out, out_big = model(data) 
+#                         radii1 = torch.exp(model.logsigmas)
+# #                         param = torch.exp(model.param)
 
-                        scores = - dists + model.alphas
+#                         scores = - dists + model.alphas
 
-                        label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
-                        predicted = torch.argmax(scores, 1)
-                        conf, _ = torch.max(scores, dim=1)
+#                         label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
+#                         predicted = torch.argmax(scores, 1)
+#                         conf, _ = torch.max(scores, dim=1)
 
-                        for j in range(len(out_big)):
-                            #labels_list.append(labels[j].squeeze().tolist())
-                            out_feat_test1.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
+#                         for j in range(len(out_big)):
+#                             #labels_list.append(labels[j].squeeze().tolist())
+#                             out_feat_test1.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()]+scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
                 
 #                 print(f"centre from test: {model.centers}")
 #                 print(f"for test radii:{radii1}")#, \n alpha : {param1}")
@@ -186,7 +186,7 @@ def main():
     ###----------saving model -----------------###
     torch.save(model, outdir+'model_saved'+str(args.dataset)+'.pt')
 
-    print(f' shape of complete train data_from dataloader: {len(out_feat_train)}, of validation : {len(out_feat_test)} of ood:{ len(out_feat_test1)}')
+    print(f' shape of complete train data_from dataloader: {len(out_feat_train)}, of validation : {len(out_feat_test)} ')# of ood:{ len(out_feat_test1)}')
     #----trying to store representation  as text files
     outfile = os.path.join(outdir, 'latent_train_representation.csv')
     f = open(outfile, 'w')
@@ -203,13 +203,13 @@ def main():
 
     f.close()
 
-    #----test -- ood ---------
-    outfile = os.path.join(outdir, 'latent_test_ood_representation.csv')
-    f = open(outfile, 'w')
-    for i in range(len(out_feat_test1)):
-        f.write("{}\n".format(out_feat_test1[i]))
+#     #----test -- ood ---------
+#     outfile = os.path.join(outdir, 'latent_test_ood_representation.csv')
+#     f = open(outfile, 'w')
+#     for i in range(len(out_feat_test1)):
+#         f.write("{}\n".format(out_feat_test1[i]))
 
-    f.close()
+#     f.close()
 
     
      #---------for train data--------------------
@@ -230,7 +230,7 @@ def main():
 #     print(cm)
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
-    for idx in range(label):
+    for idx in range(len(label)):
         true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
         true_positives = cm[idx, idx]
         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
@@ -256,7 +256,7 @@ def main():
 #     print(cm)
     # We will store the results in a dictionary for easy access later
     per_class_accuracies = {}
-    for idx in range(label):
+    for idx in range(len(label)):
         true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
         true_positives = cm[idx, idx]
         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
@@ -267,32 +267,32 @@ def main():
         print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
 
 
-    #=========for test data===============
-    print(f'value count for  TEST DATA ')
-    # Get the confusion matrix
-    #print(args.dataset)
-    #locatio_n = '/output/'+str(args.dataset)
-    #df = pd.read_csv(directory+str(args.net_type)+'_'+  str(args.dataset) +'/latent_test_ood_representation.csv')
-    df= pd.read_csv(outdir+'/latent_test_ood_representation.csv')
-    df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
-    col = list(df.columns)
-    print(f'value count for test label {df[col[hidden_size]].value_counts()}')
-    print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
-    label = list(df[col[hidden_size]].unique())
-    label.sort()
-    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
-#     print(cm)
-    # We will store the results in a dictionary for easy access later
-    per_class_accuracies = {}
-    for idx in range(label):
-        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
-        true_positives = cm[idx, idx]
-        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
+#     #=========for test data===============
+#     print(f'value count for  TEST DATA ')
+#     # Get the confusion matrix
+#     #print(args.dataset)
+#     #locatio_n = '/output/'+str(args.dataset)
+#     #df = pd.read_csv(directory+str(args.net_type)+'_'+  str(args.dataset) +'/latent_test_ood_representation.csv')
+#     df= pd.read_csv(outdir+'/latent_test_ood_representation.csv')
+#     df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
+#     col = list(df.columns)
+#     print(f'value count for test label {df[col[hidden_size]].value_counts()}')
+#     print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
+#     label = list(df[col[hidden_size]].unique())
+#     label.sort()
+#     cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
+# #     print(cm)
+#     # We will store the results in a dictionary for easy access later
+#     per_class_accuracies = {}
+#     for idx in range(label):
+#         true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
+#         true_positives = cm[idx, idx]
+#         per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
 
-    a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
-    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
-    for i in range(len(a[0])):
-        print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+#     a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
+#     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
+#     for i in range(len(a[0])):
+#         print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
 
     # #         #---we want to save 
     #         best_idacc = max(idacc_list)
