@@ -215,7 +215,7 @@ def main():
                 #_, predicted1 = torch.max(scores1, 1)
                 predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
                 for i in range(len(scores1)):
-                    if ((torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf)) #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
+                    if ((torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf)): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
                         predicted1[i] = torch.argmax(scores1[i])
 #                     elif (torch.max(scores1[i]) <= 0) & (conf1[i] > args.conf):
 #                         predicted1[i] =  torch.argmax(scores1[i])
