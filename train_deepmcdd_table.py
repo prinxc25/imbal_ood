@@ -1,14 +1,26 @@
 import os, argparse
 import torch
 import numpy as np
-
+import itertools
 import models
+import sklearn
+import pandas as pd
+from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import confusion_matrix
 from dataloader_table import get_table_data
+# from dataloader_table import get_table_data_with_iden
+from dataloader_table import get_table_data_with_iden_separate_sets
 from utils import compute_confscores, compute_metrics, print_ood_results, print_ood_results_total
+#from sklearn.semi_supervised import SelfTrainingClassifier # for Semi-Supervised learning
+#from datetime import date
+#from datetime import timedelta
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mnist')
 parser.add_argument('--net_type', required=True, help='mlp')
+# parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
+# parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
+parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
 parser.add_argument('--oodclass_idx', type=int, default=0, help='index of the OOD class')
@@ -24,6 +36,11 @@ parser.add_argument('--gpu', type=int, default=0, help='gpu index')
 args = parser.parse_args()
 print(args)
 
+# Get today's date
+#today = date.today()
+#rundate = datetime.strftime(today,"%Y%m%d")
+#print(rundate)
+
 def main():
     outdir = os.path.join(args.outdir, args.net_type + '_' + args.dataset)
 
@@ -37,8 +54,8 @@ def main():
     best_idacc_list, best_oodacc_list = [], []
     for fold_idx in range(args.num_folds):
         
-        train_loader, test_id_loader, test_ood_loader = get_table_data(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
-
+        train_loader, test_id_loader, test_ood_loader, num_features1, num_classes1 = get_table_data_with_iden_separate_sets(args.batch_size, args.datadir, args.dataset, args.oodclass_idx, fold_idx)
+        print(f' shape of complete train data: {len(train_loader.dataset)}, of validation : {len(test_id_loader.dataset)} of ood:{ len(test_ood_loader.dataset)}')
         if args.dataset == 'gas':
             num_classes, num_features = 6, 128
         elif args.dataset == 'drive':
@@ -47,6 +64,10 @@ def main():
             num_classes, num_features = 7, 9
         elif args.dataset == 'mnist':
             num_classes, num_features = 10, 784
+        else: 
+          num_classes, num_features = num_classes1, num_features1 
+#           num_classes, num_features = args.num_classes, args.num_features
+        print(f' number of classes : {num_classes}, number of features: {num_features}, no of id classes: {num_classes-1}' )
         
         model = models.MLP_DeepMCDD(num_features, args.num_layers*[args.latent_size], num_classes=num_classes-1)
         model.cuda()
