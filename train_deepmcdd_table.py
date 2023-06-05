@@ -19,7 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mnist')
 parser.add_argument('--net_type', required=True, help='mlp')
 # parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
-# parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
+parser.add_argument('--conf',type=float,default = 0.7, help='conf for making prediction in dataset')
 parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
@@ -83,7 +83,7 @@ def main():
              
             for i, (data, labels) in enumerate(train_loader):
 
-                 data, labels = data.cuda(), labels.cuda()
+                data, labels = data.cuda(), labels.cuda()
 
                 dists, out, out_big = model(data) 
                
@@ -111,7 +111,7 @@ def main():
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-                total_data = total_data+ len(labels)
+                # total_data = total_data+ len(labels)
                 total_loss += loss.item()
 
                 # data, labels = data.cuda(), labels.cuda()
@@ -157,30 +157,31 @@ def main():
                     correct += (predicted == labels).sum().item()
                 
 
-            correct1, total1 = 0, 0
-           
-            for i, (data1, labels1) in enumerate(test_ood_loader):
-                data1, labels1 = data1.cuda(), labels1.cuda()
+                correct1, total1 = 0, 0
                 
-                #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
-                dists1, out1, out_big1 = model(data1)
-                #conf1, _ = torch.min(dists1, dim=1)
-                #print(f'confidence shape:{conf1.shape}')
-                #centers_c1 = model.centers
-                #scores1 = - dists1 + model.alphas
-                radii11 = radii1
-                param1 = param
-                scores1 = -torch.abs(dists1) +torch.mul(param1,radii11) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
-                scores_121 = torch.exp(torch.div(scores1, torch.mul(param1,radii11))-1)
-                conf1, _ = torch.max(scores_121, dim=1)
-                #conf1, _ = torch.max(scores1, dim=1)
-                #_, predicted1 = torch.max(scores1, 1)
-                predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
-                for i in range(len(scores1)):
-                    if ((torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf)): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
-                        predicted1[i] = torch.argmax(scores1[i])
-                total1 += labels1.size(0)
-                correct1 += (predicted1 == labels1).sum().item()
+                for i, (data1, labels1) in enumerate(test_ood_loader):
+                    data1, labels1 = data1.cuda(), labels1.cuda()
+                    
+                    #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
+                    dists1, out1, out_big1 = model(data1)
+                    #conf1, _ = torch.min(dists1, dim=1)
+                    #print(f'confidence shape:{conf1.shape}')
+                    #centers_c1 = model.centers
+                    #scores1 = - dists1 + model.alphas
+                    radii11 = radii1
+                    param1 = param
+                    scores1 = -torch.abs(dists1) +torch.mul(param1,radii11) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
+                    scores_121 = torch.exp(torch.div(scores1, torch.mul(param1,radii11))-1)
+                    conf1, _ = torch.max(scores_121, dim=1)
+                    #conf1, _ = torch.max(scores1, dim=1)
+                    #_, predicted1 = torch.max(scores1, 1)
+                    predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
+                    predicted1 = predicted1.cuda()
+                    for i in range(len(scores1)):
+                        if ((torch.max(scores1[i]) >= 0) & (conf1[i] > args.conf)): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
+                            predicted1[i] = torch.argmax(scores1[i])
+                    total1 += labels1.size(0)
+                    correct1 += (predicted1 == labels1).sum().item()
                 # correct, total = 0, 0
                 # for data, labels in test_id_loader:
                 #     data, labels = data.cuda(), labels.cuda()
