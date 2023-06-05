@@ -17,12 +17,18 @@ def compute_confscores(model, test_loader, outdir, id_flag):
     f = open(outfile, 'w')
     
     for data, _ in test_loader:
-        dists = model(data.cuda())
-        confscores, _ = torch.min(dists, dim=1)
+        dists,  out, out_big = model(data.cuda())
+        radii1 = torch.exp(model.logsigmas)
+        param = torch.exp(model.param)
+        #scores = - dists + model.alphas #----
+        scores = - torch.abs(dists) + torch.mul(param,radii1)
+        scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)#---normalizing for scores to be of probability nature
+        confscores, _ = torch.max(scores_12, dim=1)
+        # confscores, _ = torch.min(dists, dim=1)
         total += data.size(0)
 
         for i in range(data.size(0)):
-            f.write("{}\n".format(-confscores[i]))
+            f.write("{}\n".format(confscores[i]))
     
     f.close()
 
