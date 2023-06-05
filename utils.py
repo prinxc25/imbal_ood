@@ -6,7 +6,8 @@
 import os
 import torch
 import numpy as np
-
+import pandas as pd
+from sklearn.metrics import confusion_matrix
 def compute_confscores(model, test_loader, outdir, id_flag):
     total = 0
     if id_flag == True:
@@ -17,54 +18,98 @@ def compute_confscores(model, test_loader, outdir, id_flag):
     f = open(outfile, 'w')
     
     for data, _ in test_loader:
-        dists = model(data.cuda())
-        confscores, _ = torch.min(dists, dim=1)
+        dists,  out, out_big = model(data.cuda())
+        radii1 = torch.exp(model.logsigmas)
+        param = torch.exp(model.param)
+        #scores = - dists + model.alphas #----
+        scores = - torch.abs(dists) + torch.mul(param,radii1)
+        scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)#---normalizing for scores to be of probability nature
+        confscores, _ = torch.max(scores_12, dim=1)
+        # confscores, _ = torch.min(dists, dim=1)
         total += data.size(0)
 
         for i in range(data.size(0)):
-            f.write("{}\n".format(-confscores[i]))
+            f.write("{}\n".format(confscores[i]))
     
     f.close()
-
 def get_auroc_curve(indir):
-    known = np.loadtxt(os.path.join(indir, 'confscores_id.txt'), delimiter='\n')
-    novel = np.loadtxt(os.path.join(indir, 'confscores_ood.txt'), delimiter='\n')
-    known.sort()
-    novel.sort()
-    
-    end = np.max([np.max(known), np.max(novel)])
-    start = np.min([np.min(known),np.min(novel)])
-    
-    num_k = known.shape[0]
-    num_n = novel.shape[0]
-    
-    tp = -np.ones([num_k+num_n+1], dtype=int)
-    fp = -np.ones([num_k+num_n+1], dtype=int)
-    tp[0], fp[0] = num_k, num_n
-    k, n = 0, 0
-    for l in range(num_k+num_n):
-        if k == num_k:
-            tp[l+1:] = tp[l]
-            fp[l+1:] = np.arange(fp[l]-1, -1, -1)
-            break
-        elif n == num_n:
-            tp[l+1:] = np.arange(tp[l]-1, -1, -1)
-            fp[l+1:] = fp[l]
-            break
-        else:
-            if novel[n] < known[k]:
-                n += 1
-                tp[l+1] = tp[l]
-                fp[l+1] = fp[l] - 1
-            else:
-                k += 1
-                tp[l+1] = tp[l] - 1
-                fp[l+1] = fp[l]
+    predicted_ood = np.genfromtxt(os.path.join(indir, 'predicted_ood.csv'), delimiter=',')
+    predicted_id = np.genfromtxt(os.path.join(indir, 'predicted_id.csv'), delimiter=',')
+    actual_id = np.genfromtxt(os.path.join(indir, 'labels_id.csv'), delimiter=',')
+    actual_ood = np.genfromtxt(os.path.join(indir, 'labels_ood.csv'), delimiter=',')
+    print(predicted_ood.shape,actual_ood.shape,predicted_id.shape, actual_id.shape )
+    predicted = np.append(predicted_id, predicted_ood)
+    actual = np.append(actual_id,actual_ood)
+    num_k = len(actual_id) # known
+    num_n = len(actual_ood) # novel
+    cm =  confusion_matrix(actual, predicted)
+    # cm_id =  confusion_matrix(actual_id, predicted_id)
+    tp  = np.diag(cm)
+    fp = cm.sum(axis=0) - np.diag(cm) 
+    # tpo = np.diag(cm)
+    # tpi = np.diag(cm_id)
+    # fpo = cm_ood.sum(axis=0) - np.diag(cm_ood) 
+    # fpi = cm_id.sum(axis=0) - np.diag(cm_id)
+    # tp = tpi + tpo
+    # fp = fpi +fpo
+    # tpr85_pos1 = np.abs(tpo / num_n - .85).argmin()
+    # tpr95_pos1 = np.abs(tpo/ num_n - .95).argmin()
+    # tnr_at_tpr851 = 1. - fpo[tpr85_pos1] / num_n 
+    # tnr_at_tpr951 = 1. - fpo[tpr95_pos1] / num_n
+
+    # tpr85_pos2 = np.abs(tpi / num_k - .85).argmin()
+    # tpr95_pos2 = np.abs(tpi / num_k - .95).argmin()
+    # tnr_at_tpr852 = 1. - fpi[tpr85_pos2] / num_k
+    # tnr_at_tpr952 = 1. - fpi[tpr95_pos2] / num_k
+
+    #  FPR95? In the MOS paper [18] it is the false positive rate of
+    # OOD examples when the true positive rate for ID examples is 95%.
     tpr85_pos = np.abs(tp / num_k - .85).argmin()
     tpr95_pos = np.abs(tp / num_k - .95).argmin()
     tnr_at_tpr85 = 1. - fp[tpr85_pos] / num_n
     tnr_at_tpr95 = 1. - fp[tpr95_pos] / num_n
     return tp, fp, tnr_at_tpr85, tnr_at_tpr95
+    
+    # return tpo, fpo, tnr_at_tpr851, tnr_at_tpr951, tpi, fpi, tnr_at_tpr852, tnr_at_tpr952
+# def get_auroc_curve(indir):
+#     known = np.loadtxt(os.path.join(indir, 'confscores_id.txt'), delimiter='\n')
+#     novel = np.loadtxt(os.path.join(indir, 'confscores_ood.txt'), delimiter='\n')
+#     known.sort()
+#     novel.sort()
+    
+#     end = np.max([np.max(known), np.max(novel)])
+#     start = np.min([np.min(known),np.min(novel)])
+    
+#     num_k = known.shape[0]
+#     num_n = novel.shape[0]
+    
+#     tp = -np.ones([num_k+num_n+1], dtype=int)
+#     fp = -np.ones([num_k+num_n+1], dtype=int)
+#     tp[0], fp[0] = num_k, num_n
+#     k, n = 0, 0
+#     for l in range(num_k+num_n):
+#         if k == num_k:
+#             tp[l+1:] = tp[l]
+#             fp[l+1:] = np.arange(fp[l]-1, -1, -1)
+#             break
+#         elif n == num_n:
+#             tp[l+1:] = np.arange(tp[l]-1, -1, -1)
+#             fp[l+1:] = fp[l]
+#             break
+#         else:
+#             if novel[n] < known[k]:
+#                 n += 1
+#                 tp[l+1] = tp[l]
+#                 fp[l+1] = fp[l] - 1
+#             else:
+#                 k += 1
+#                 tp[l+1] = tp[l] - 1
+#                 fp[l+1] = fp[l]
+#     tpr85_pos = np.abs(tp / num_k - .85).argmin()
+#     tpr95_pos = np.abs(tp / num_k - .95).argmin()
+#     tnr_at_tpr85 = 1. - fp[tpr85_pos] / num_n
+#     tnr_at_tpr95 = 1. - fp[tpr95_pos] / num_n
+#     return tp, fp, tnr_at_tpr85, tnr_at_tpr95
 
 def compute_metrics(dir_name, verbose=False):
     tp, fp, tnr_at_tpr85, tnr_at_tpr95 = get_auroc_curve(dir_name)
@@ -73,7 +118,7 @@ def compute_metrics(dir_name, verbose=False):
     if verbose:
         print('      ', end='')
         for mtype in mtypes:
-            print(' {mtype:6s}'.format(mtype=mtype), end='')
+            print(' for in distribution test {mtype:6s}'.format(mtype=mtype), end='')
         print('')
         
     if verbose:
