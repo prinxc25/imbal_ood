@@ -181,7 +181,12 @@ def main():
                     radii1 = radii1
                     param = param
                     scores = - torch.abs(dists) + torch.mul(param,radii1) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
-                    scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)
+                    # scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)
+                    ## way 2----------------------
+                    scores_12 = torch.exp(0.65*(torch.div(scores, torch.mul(param,radii1))-1)) + torch.exp(10**(-12))
+                    # multiplying buy 0.69 so that at circumference prob is a little more than 0.5
+                    # adding torch.exp(10**(-12)) for stability
+                    scores_12 = f.normalize(scores_12 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
                     conf, _ = torch.max(scores_12, dim=1)
                     #conf, _ = torch.max(scores, dim=1)
                     # _, predicted = torch.argmax(scores, 1)
@@ -209,7 +214,12 @@ def main():
                 radii11 = radii1
                 param1 = param
                 scores1 = -torch.abs(dists1) +torch.mul(param1,radii11) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
-                scores_121 = torch.exp(torch.div(scores1, torch.mul(param1,radii11))-1)
+                # scores_121 = torch.exp(torch.div(scores1, torch.mul(param1,radii11))-1)
+                ## way 2----------------------
+                scores_121 = torch.exp(0.65*(torch.div(scores, torch.mul(param1,radii11))-1)) + torch.exp(10**(-12))
+                # multiplying buy 0.69 so that at circumference prob is a little more than 0.5
+                # adding torch.exp(10**(-12)) for stability
+                scores_121 = f.normalize(scores_121 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
                 conf1, _ = torch.max(scores_121, dim=1)
                 #conf1, _ = torch.max(scores1, dim=1)
                 #_, predicted1 = torch.max(scores1, 1)
