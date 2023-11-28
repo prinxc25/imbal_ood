@@ -383,8 +383,8 @@ def main():
 
     a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
-    for i in range(len(a[0])):
-        print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+    # for i in range(len(a[0])):
+    #     print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
     print(f'value count for ood test data points: \n {df[df[col[hidden_size]]== -1][col[hidden_size + 1]].value_counts()}')
     
     # #         #---we want to save 
