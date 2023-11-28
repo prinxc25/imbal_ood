@@ -89,7 +89,26 @@ def main():
        #def __init__(self, input_size, hidden_sizes, num_classes)
        # latent_size = dimension size for latent representation, default = 128
        # num_layers = the number of hidden layers in MLP, default = 3
-        ce_loss = torch.nn.CrossEntropyLoss()
+        weights = torch.ones(num_classes-1).cuda()
+        def ce_loss(predicted, labels, weights=None):
+            """
+            Compute cross-entropy loss with optional class weights.
+
+            Args:
+                predicted (torch.Tensor): Predicted logits from the model.
+                labels (torch.Tensor): True labels.
+                weights (torch.Tensor, optional): Weights for each class. Default is None.
+
+            Returns:
+                torch.Tensor: Cross-entropy loss.
+            """
+            # Apply weights if provided
+            if weights is not None:
+                cross_entropy = torch.nn.functional.cross_entropy(predicted, labels, weight=weights)
+            else:
+                cross_entropy = torch.nn.functional.cross_entropy(predicted, labels)
+
+            return cross_entropy
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
    
         #idacc_list1, idacc_list2, idacc_list3, idacc_list4, idacc_list5, idacc_list6, idacc_list7, idacc_list8, idacc_list9 = [],[],[],[],[],[],[],[],[]
@@ -106,7 +125,7 @@ def main():
             for i, (data, labels) in enumerate(train_loader):
                 
                 data, labels = data.cuda(), labels.cuda()
-
+                # print(labels.shape)
                 dists, out, out_big = model(data) 
                
                 radii1 = torch.exp(model.logsigmas)
@@ -121,10 +140,10 @@ def main():
                 ##---way 1-----------
                 # scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)
                 ## way 2----------------------
-                scores_12 = torch.exp(0.65*(torch.div(scores, torch.mul(param,radii1))-1)) + torch.exp(10**(-12))
+                scores_12 = torch.exp(0.65*(torch.div(scores, torch.mul(param,radii1))-1)) + torch.exp(torch.tensor(10**(-12.0)))
                 # multiplying buy 0.69 so that at circumference prob is a little more than 0.5
                 # adding torch.exp(10**(-12)) for stability
-                scores_12 = f.normalize(scores_12 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
+                scores_12 = torch.nn.functional.normalize(scores_12 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
                 conf, _ = torch.max(scores_12, dim=1)
                 label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                 #print(label_mask)
@@ -133,7 +152,20 @@ def main():
                 pull_loss1 = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
                 push_loss1 = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(args.reg_lambda,  dists)), dim=1))
                 #push_loss1 = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(1, torch.mul(torch.abs(model.alphas), dists))), dim=1)) #---this is working fine as of now -- push lloss
-                pull_loss2 = ce_loss(scores_12, labels)#---the probem is happening here----scores are negative tooo -- pull loss
+                #========focal loss class balanced ------------
+
+                #------class balanced cross entropy loss ---------
+                classes, count = labels.unique(return_counts=True, sorted=True)
+                class_count_dict = dict(zip(classes.tolist(), count.tolist()))
+                # print(classes, count)
+                betaf = (labels.shape[0] -1)/labels.shape[0]
+                # alphaf = (1-betaf)/(1 - betaf**count)
+                for i in classes.tolist():
+                     weights[i] = (1-betaf)/(1 - betaf**class_count_dict[i])
+                # alphaf = torch.cat((alphaf, torch.tensor([1]).cuda()))
+                # print(f"alpha :{weights}")
+                pull_loss2 = ce_loss(scores_12, labels, weights)
+                # pull_loss2 = ce_loss(scores_12, labels)#---the probem is happening here----scores are negative tooo -- pull loss
                 #loss = args.reg_lambda * pull_loss + push_loss 
                 loss =  pull_loss1 + push_loss1 + pull_loss2 
                 optimizer.zero_grad()
@@ -147,7 +179,7 @@ def main():
             print(f'loss for epoch {epoch} is : {loss}')
             # print(f"centre from train: {model.centers}")
             # print(f"for train radii:{radii1}, \n alpha : {param}")
-
+            
             model.eval()
             with torch.no_grad():
 
@@ -170,9 +202,9 @@ def main():
                 #------------------------VAL DATA------------------------------------
                 for i, (data, labels) in enumerate(test_id_loader):
                     #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
-                   
-                    data, labels = data.cuda(), labels.cuda()
                     
+                    data, labels = data.cuda(), labels.cuda()
+                    # print("data test: {}, data lanbels: {}".format(data.shape, labels.shape))
                     dists, out, out_big = model(data)
                     #conf, _ = torch.min(dists, dim=1)
                     #print(f'confidence shape:{conf.shape}')
@@ -183,11 +215,12 @@ def main():
                     scores = - torch.abs(dists) + torch.mul(param,radii1) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
                     # scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)
                     ## way 2----------------------
-                    scores_12 = torch.exp(0.65*(torch.div(scores, torch.mul(param,radii1))-1)) + torch.exp(10**(-12))
+                    scores_12 = torch.exp(0.65*(torch.div(scores, torch.mul(param,radii1))-1)) + torch.exp(torch.tensor(10**(-12.0)))
                     # multiplying buy 0.69 so that at circumference prob is a little more than 0.5
                     # adding torch.exp(10**(-12)) for stability
-                    scores_12 = f.normalize(scores_12 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
+                    scores_12 = torch.nn.functional.normalize(scores_12 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
                     conf, _ = torch.max(scores_12, dim=1)
+                    # print("conf: {}, score: {}".format(conf.shape, scores.shape))
                     #conf, _ = torch.max(scores, dim=1)
                     # _, predicted = torch.argmax(scores, 1)
                     predicted = torch.argmax(scores, 1)
@@ -197,7 +230,7 @@ def main():
                         #my_out_test_id = out+labels
                         out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
                     #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
-                   
+                print("done vlaidating")   
                 # print(f"centre from val: {model.centers}")
                 # print(f"for validation radii:{radii1}, \n alpha : {param}")
 
@@ -205,6 +238,7 @@ def main():
             out_feat_test1 = []
             for i, (data1, labels1) in enumerate(test_ood_loader):
                 data1, labels1 = data1.cuda(), labels1.cuda()
+                # print("data test: {}, data lanbels: {}".format(data1.shape, labels1.shape))
                 #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
                 dists1, out1, out_big1 = model(data1)
                 #conf1, _ = torch.min(dists1, dim=1)
@@ -216,11 +250,12 @@ def main():
                 scores1 = -torch.abs(dists1) +torch.mul(param1,radii11) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
                 # scores_121 = torch.exp(torch.div(scores1, torch.mul(param1,radii11))-1)
                 ## way 2----------------------
-                scores_121 = torch.exp(0.65*(torch.div(scores, torch.mul(param1,radii11))-1)) + torch.exp(10**(-12))
+                scores_121 = torch.exp(0.65*(torch.div(scores1, torch.mul(param1,radii11))-1)) + torch.exp(torch.tensor(10**(-12.0)))
                 # multiplying buy 0.69 so that at circumference prob is a little more than 0.5
                 # adding torch.exp(10**(-12)) for stability
-                scores_121 = f.normalize(scores_121 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
+                scores_121 = torch.nn.functional.normalize(scores_121 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
                 conf1, _ = torch.max(scores_121, dim=1)
+                # print("conf: {}, score: {}".format(conf1.shape, scores1.shape))
                 #conf1, _ = torch.max(scores1, dim=1)
                 #_, predicted1 = torch.max(scores1, 1)
                 predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
@@ -235,10 +270,11 @@ def main():
                 #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
             # print(f"centre from test: {model.centers}")
             # print(f"for test radii:{radii11}, \n alpha : {param1}")
+            print("done testing")  
     
 
     ###----------saving model -----------------###
-    torch.save(model, outdir+'model_saved'+str(args.dataset)+'.pt')
+    # torch.save(model, outdir+'model_saved'+str(args.dataset)+'.pt')
 
     print(f' shape of complete train data_from dataloader: {len(out_feat_train)}, of validation : {len(out_feat_test)} of ood:{ len(out_feat_test1)}')
     #----trying to store representation  as text files
