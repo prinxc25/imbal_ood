@@ -237,7 +237,7 @@ def main():
                         #my_out_test_id = out+labels
                         out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
                     #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
-                print("done vlaidating")   
+                print("done validating")   
                 # print(f"centre from val: {model.centers}")
                 # print(f"for validation radii:{radii1}, \n alpha : {param}")
 
@@ -339,12 +339,15 @@ def main():
     for i in range(len(a[0])):
         print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
 
-    # -----------for val data -----------ique
-    print(f'accuracy, precison, recall, anf f1 score for VALIDATION DATA ')
+    #  #=========for test data===============
+    print(f'value count for indistribution and OOD TEST DATA ')
+    print(f'accuracy, precison, recall, anf f1 score for TEST DATA ')
     # Get the confusion matrix
     #print(args.dataset)
     #locatio_n = '/output/'+str(args.dataset)
-    df = pd.read_csv(outdir + '/latent_val_representation.csv')
+    df1 = pd.read_csv(outdir + '/latent_val_representation.csv')
+    df2 = pd.read_csv(outdir + '/latent_test_ood_representation.csv')
+    df = pd.concat[df1, df2]
     df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
     col = list(df.columns)
     print(f'value count for val label {df[col[hidden_size]].value_counts()}')
@@ -365,59 +368,6 @@ def main():
     for i in range(len(a[0])):
         print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
 
-
-    #=========for test data===============
-    print(f'value count for  TEST DATA ')
-    # Get the confusion matrix
-    #print(args.dataset)
-    #locatio_n = '/output/'+str(args.dataset)
-    #df = pd.read_csv(directory+str(args.net_type)+'_'+  str(args.dataset) +'/latent_test_ood_representation.csv')
-    df= pd.read_csv(outdir+'/latent_test_ood_representation.csv')
-    df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
-    col = list(df.columns)
-    print(f'value count for test label {df[col[hidden_size]].value_counts()}')
-    print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
-    label = list(df[col[hidden_size]].unique())
-    label.sort()
-    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
-    print(cm)
-    # We will store the results in a dictionary for easy access later
-    per_class_accuracies = {}
-    for idx in range(len(label)):
-        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
-        true_positives = cm[idx, idx]
-        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
-
-    a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
-    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
-    # for i in range(len(a[0])):
-    #     print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
-    print(f'value count for ood test data points: \n {df[df[col[hidden_size]]== -1][col[hidden_size + 1]].value_counts()}')
-    
-    # #         #---we want to save 
-    #         best_idacc = max(idacc_list)
-    #         best_oodacc = oodacc_list[idacc_list.index(best_idacc)]
-            
-    #         print('== {fidx:1d}-th fold results =='.format(fidx=fold_idx+1))
-    #         print('The best ID accuracy on "{idset:s}" test samples : {val:6.2f}'.format(idset=args.dataset, val=best_idacc))
-    #         print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset=args.dataset+'_'+str(args.oodclass_idx)))
-    #         print_ood_results(best_oodacc)
-    #         #print()
-    #         best_idacc_list.append(best_idacc)
-    #         best_oodacc_list.append(best_oodacc)
-    #     #print(f'{out[0,0]},\n {out[0,0].shape}')
-    #     #x_n = np.array(out[0])
-    #     #y_n = np.array(out[1])
-    #     #a = np.allclose(x, y)
-    #     # for i in range(63):
-    #     #     print(torch.equal(data[0], data[i+1]))
-    #     #     print(torch.equal(out[0], out[i+1]))
-    #     #print(out[0]==out[1])
-    #     print('== Final results ==')
-    #     print('The best ID accuracy on "{idset:s}" test samples : {mean:6.2f} ({std:6.3f})'.format(idset=args.dataset, mean=np.mean(best_idacc_list), std=np.std(best_idacc_list)))
-    #     print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset='class_'+str(args.oodclass_idx)))
-    #     print_ood_results_total(best_oodacc_list)
- 
 
 if __name__ == '__main__':
     main()
