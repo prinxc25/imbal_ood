@@ -6,7 +6,7 @@ import models
 import sklearn
 import pandas as pd
 import torch.nn.functional as f
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 from sklearn.metrics import confusion_matrix
 from dataloader_table import get_table_data
 # from dataloader_table import get_table_data_with_iden
@@ -227,7 +227,7 @@ def main():
                     # _, predicted = torch.argmax(scores, 1)
                     #predicted = torch.argmax(scores, 1)
                     predicted= -1 + torch.zeros(len(labels), dtype=torch.int64) # inittializing everything as -1
-                    predicted = predicted1.cuda()
+                    predicted = predicted.cuda()
                     for i in range(len(scores)):
                         if ((torch.max(scores[i]) >= 0) & (conf[i] > args.conf)): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
                            predicted[i] = torch.argmax(scores[i])
@@ -346,12 +346,14 @@ def main():
     #print(args.dataset)
     #locatio_n = '/output/'+str(args.dataset)
     df1 = pd.read_csv(outdir + '/latent_val_representation.csv')
+    df1.columns =  ['feat_'+str(x+1) for x in range(len(df1.columns))]
     df2 = pd.read_csv(outdir + '/latent_test_ood_representation.csv')
-    df = pd.concat[df1, df2]
-    df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
-    col = list(df.columns)
-    print(f'value count for val label {df[col[hidden_size]].value_counts()}')
-    print(f'value count for val predicted {df[col[hidden_size + 1]].value_counts()}')
+    df2.columns =  ['feat_'+str(x+1) for x in range(len(df2.columns))]
+    print(f"val shape {df1.shape}, ood shape {df2.shape} ")
+    df = pd.concat([df1, df2])
+    col = list(df1.columns)
+    print(f'value count for test label {df[col[hidden_size]].value_counts()}')
+    print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
     label = list(df[col[hidden_size]].unique())
     label.sort()
     cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
@@ -367,7 +369,9 @@ def main():
     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
     for i in range(len(a[0])):
         print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
-
-
+    print("overall classification metric")
+    p,r,f,supp = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average='weighted')
+    a = accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]))
+    print(f"overall precision: {p},\n recall: {r},\n f1-score: {f},\n accuracy : {a} \n")
 if __name__ == '__main__':
     main()
