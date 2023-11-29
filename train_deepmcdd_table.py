@@ -369,9 +369,13 @@ def main():
     # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
     for i in range(len(a[0])):
         print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
-    print("overall classification metric")
+    print("overall classification metric validation ")
+    p,r,f,supp = precision_recall_fscore_support(np.array(df1.iloc[:,hidden_size]), np.array(df1.iloc[:, hidden_size+1]), average='weighted')
+    a = accuracy_score(np.array(df1.iloc[:,hidden_size]), np.array(df1.iloc[:, hidden_size+1]), normalize = True)
+    print(f" overall accuracy : {a} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
+    print("overall classification metric in-distribution along with ood")
     p,r,f,supp = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average='weighted')
-    a = accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]))
-    print(f"overall precision: {p},\n recall: {r},\n f1-score: {f},\n accuracy : {a} \n")
+    a = accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), normalize = True)
+    print(f" overall accuracy : {a} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
 if __name__ == '__main__':
     main()
