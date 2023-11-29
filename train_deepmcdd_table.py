@@ -21,7 +21,7 @@ parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mn
 parser.add_argument('--net_type', required=True, help='mlp')
 # parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
 # parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
-parser.add_argument('--conf',type=float,default = 0.7, help='conf for making prediction in dataset')
+parser.add_argument('--conf',type=float,default = 0.5, help='conf for making prediction in dataset')
 parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
@@ -223,7 +223,14 @@ def main():
                     # print("conf: {}, score: {}".format(conf.shape, scores.shape))
                     #conf, _ = torch.max(scores, dim=1)
                     # _, predicted = torch.argmax(scores, 1)
-                    predicted = torch.argmax(scores, 1)
+                    # predicted = torch.argmax(scores, 1)
+                    # _, predicted = torch.argmax(scores, 1)
+                    #predicted = torch.argmax(scores, 1)
+                    predicted= -1 + torch.zeros(len(labels), dtype=torch.int64) # inittializing everything as -1
+                    predicted = predicted1.cuda()
+                    for i in range(len(scores)):
+                        if ((torch.max(scores[i]) >= 0) & (conf[i] > args.conf)): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
+                           predicted[i] = torch.argmax(scores[i])
                     #conf, _ = torch.min(dists, dim=1)
                     for j in range(len(out_big)):
                     #labels_list_test.append([j].squeeze().tolist())
