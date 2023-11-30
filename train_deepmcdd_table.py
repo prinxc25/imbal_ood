@@ -84,11 +84,31 @@ def main():
         #                                      verbose=True # default=False, Verbosity prints some information after each iteration
         #                                     )
         model.cuda()
-       #class MLP_DeepMCDD(nn.Module):
-       #def __init__(self, input_size, hidden_sizes, num_classes)
-       # latent_size = dimension size for latent representation, default = 128
-       # num_layers = the number of hidden layers in MLP, default = 3
-        ce_loss = torch.nn.CrossEntropyLoss()
+        #class MLP_DeepMCDD(nn.Module):
+        #def __init__(self, input_size, hidden_sizes, num_classes)
+        # latent_size = dimension size for latent representation, default = 128
+        # num_layers = the number of hidden layers in MLP, default = 3
+        # ce_loss = torch.nn.CrossEntropyLoss()
+        weights = torch.ones(num_classes-1).cuda()
+        def ce_loss(predicted, labels, weights=None):
+            """
+            Compute cross-entropy loss with optional class weights.
+    
+            Args:
+                predicted (torch.Tensor): Predicted logits from the model.
+                labels (torch.Tensor): True labels.
+                weights (torch.Tensor, optional): Weights for each class. Default is None.
+    
+            Returns:
+                torch.Tensor: Cross-entropy loss.
+            """
+            # Apply weights if provided
+            if weights is not None:
+                cross_entropy = torch.nn.functional.cross_entropy(predicted, labels, weight=weights)
+            else:
+                cross_entropy = torch.nn.functional.cross_entropy(predicted, labels)
+    
+            return cross_entropy
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
    
         #idacc_list1, idacc_list2, idacc_list3, idacc_list4, idacc_list5, idacc_list6, idacc_list7, idacc_list8, idacc_list9 = [],[],[],[],[],[],[],[],[]
@@ -108,12 +128,21 @@ def main():
 
                 dists, out, out_big = model(data)
                 scores = - dists + model.alphas
-                conf, _ = torch.min(dists, dim=1)
+                conf = torch.exp(-torch.min(dists, dim=1).values)
                 _, predicted = torch.max(scores, 1)
 
                 label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                 pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
-                push_loss = ce_loss(scores, labels)
+                #------class balanced cross entropy loss ---------
+                classes, count = labels.unique(return_counts=True, sorted=True)
+                class_count_dict = dict(zip(classes.tolist(), count.tolist()))
+                # print(classes, count)
+                betaf = (labels.shape[0] -1)/labels.shape[0]
+                # alphaf = (1-betaf)/(1 - betaf**count)
+                for i in classes.tolist():
+                     weights[i] = (1-betaf)/(1 - betaf**class_count_dict[i])
+                    
+                push_loss = ce_loss(conf_exp, labels, weights)
                 loss = args.reg_lambda * pull_loss + push_loss 
                 optimizer.zero_grad()
                 loss.backward()
