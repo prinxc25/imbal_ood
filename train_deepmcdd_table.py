@@ -5,7 +5,7 @@ import itertools
 import models
 import sklearn
 import pandas as pd
-from sklearn.metrics import precision_recall_fscore_support, accuracy score
+from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 from sklearn.metrics import confusion_matrix
 from dataloader_table import get_table_data
 # from dataloader_table import get_table_data_with_iden
