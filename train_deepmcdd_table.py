@@ -5,7 +5,7 @@ import itertools
 import models
 import sklearn
 import pandas as pd
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, accuracy score
 from sklearn.metrics import confusion_matrix
 from dataloader_table import get_table_data
 # from dataloader_table import get_table_data_with_iden
@@ -280,7 +280,7 @@ def main():
     p,r,f,supp = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average='weighted')
     acc = accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), normalize = True)
     print(f" overall accuracy : {acc} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
-    
+    print(f'for class ood: \ntotal number of actual samples: {a[3][0]}, \n accuracy : {per_class_accuracies[0]} ,\nprecision: {a[0][0]},\n recall : {a[1][0]}\n and f1 score {a[2][0]} \n')
 
 if __name__ == '__main__':
     main()
