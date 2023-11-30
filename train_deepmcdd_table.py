@@ -21,6 +21,7 @@ parser.add_argument('--net_type', required=True, help='mlp')
 # parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
 # parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
 parser.add_argument('--conf', type=float, default=0.9, help='confidence for marking id')
+parser.add_argument('--focal_gamma', type=float, default= 1, help=' gamma = 0 means CE , for focal use gamma 1 or so')
 parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
@@ -109,6 +110,7 @@ def main():
                 cross_entropy = torch.nn.functional.cross_entropy(predicted, labels)
     
             return cross_entropy
+            
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
    
         #idacc_list1, idacc_list2, idacc_list3, idacc_list4, idacc_list5, idacc_list6, idacc_list7, idacc_list8, idacc_list9 = [],[],[],[],[],[],[],[],[]
@@ -143,7 +145,10 @@ def main():
                      weights[i] = (1-betaf)/(1 - betaf**class_count_dict[i])
                     
                 push_loss = ce_loss(scores, labels, weights)
-                loss = args.reg_lambda * pull_loss + push_loss 
+                # push_loss = ce_loss(scores, labels) --- for what they have doen in deep mcdd -- use gamma 0 as well
+                pt = torch.exp(-push_loss)
+                focal_loss = ((1-pt)**args.focal_gamma * push_loss).mean()
+                loss = args.reg_lambda * pull_loss + focal_loss #push_loss 
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
