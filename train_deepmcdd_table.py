@@ -20,7 +20,7 @@ parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mn
 parser.add_argument('--net_type', required=True, help='mlp')
 # parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
 # parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
-parser.add_argument('--conf', type=float, default=0.5, help='confidence for marking id')
+parser.add_argument('--conf', type=float, default=0.9, help='confidence for marking id')
 parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
@@ -142,7 +142,7 @@ def main():
                 for i in classes.tolist():
                      weights[i] = (1-betaf)/(1 - betaf**class_count_dict[i])
                     
-                push_loss = ce_loss(conf_exp, labels, weights)
+                push_loss = ce_loss(scores, labels, weights)
                 loss = args.reg_lambda * pull_loss + push_loss 
                 optimizer.zero_grad()
                 loss.backward()
