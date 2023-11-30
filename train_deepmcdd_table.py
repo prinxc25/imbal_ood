@@ -20,7 +20,7 @@ parser.add_argument('--dataset', required=True, help='gas | shuttle | drive | mn
 parser.add_argument('--net_type', required=True, help='mlp')
 # parser.add_argument('--num_classes', required=True,type=int, help='number of classes including in dist and ood')
 # parser.add_argument('--num_features', required=True,type=int, help='number of features in dataset')
-parser.add_argument('--conf', type=float, default=0.9, help='confidence for marking id')
+parser.add_argument('--conf', type=float, default=0.5, help='confidence for marking id')
 parser.add_argument('--model_path', default=0, help='path to saved model')
 parser.add_argument('--datadir', default='./table_data/', help='path to dataset')
 parser.add_argument('--outdir', default='./output/', help='folder to output results')
@@ -152,13 +152,14 @@ def main():
                     data, labels = data.cuda(), labels.cuda()
                     dists, out, out_big = model(data)
                     scores = -dists + model.alphas
-                    _, predicted = torch.max(scores, 1)
-                    conf, _ = torch.exp(torch.min(dists, dim=1)) # making exp confidence to bound the conf
+                    # _, predicted = torch.max(scores, 1)
+                    # conf, _ = torch.exp(torch.min(dists, dim=1)) # making exp confidence to bound the conf
+                    conf= torch.exp(-torch.min(dists, dim=1).values) # making exp confidence to bound the conf
                     # ----- bounding the confidence they produce and marking ood if exp_conf <= 0.5:
                     predicted= -1 + torch.zeros(len(labels), dtype=torch.int64) # inittializing everything as -1
                     predicted = predicted.cuda()
                     for i in range(len(scores)):
-                        if ((torch.max(scores[i]) >= 0) & (conf[i] > args.conf)): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
+                        if (conf[i] > args.conf): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
                            predicted[i] = torch.argmax(scores[i])
                     #conf, _ = torch.min(dists, dim=1)
                     for j in range(len(out_big)):
@@ -178,9 +179,15 @@ def main():
                 #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
                 dists1, out1, out_big1 = model(data1)
                 scores1 = -dists1 + model.alphas
-                _, predicted1 = torch.max(scores1, 1)
-                conf1, _ = torch.min(dists1, dim=1)
-                
+                # _, predicted1 = torch.max(scores1, 1)
+                # conf1, _ = torch.min(dists1, dim=1)
+                conf1= torch.exp(-torch.min(dists1, dim=1).values) # making exp confidence to bound the conf
+                    # ----- bounding the confidence they produce and marking ood if exp_conf <= 0.5:
+                predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
+                predicted1 = predicted1.cuda()
+                for i in range(len(scores1)):
+                    if (conf1[i] > args.conf): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
+                        predicted1[i] = torch.argmax(scores1[i])
                 for j in range(len(out_big1)):
 
                     out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores1[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
@@ -287,6 +294,6 @@ def main():
     acc = accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), normalize = True)
     print(f" overall accuracy : {acc} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
     print(f'for class ood: \ntotal number of actual samples: {a[3][0]}, \n accuracy : {per_class_accuracies[0]} ,\nprecision: {a[0][0]},\n recall : {a[1][0]}\n and f1 score {a[2][0]} \n')
-
+    
 if __name__ == '__main__':
     main()
