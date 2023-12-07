@@ -35,6 +35,7 @@ parser.add_argument('--learning_rate', type=float, default=0.001, help='initial 
 parser.add_argument('--reg_pull', type=float, default=1.0, help='regularization coefficient for min dist')
 parser.add_argument('--reg_focal1', type=float, default=1.0, help='regularization coefficient for dists')
 parser.add_argument('--reg_focal2', type=float, default=1.0, help='regularization coefficient for scores')
+parser.add_argument('--reg_push', type=float, default=0.01, help='regularization coefficient for scores based mean loss')
 parser.add_argument('--gpu', type=int, default=0, help='gpu index')
 
 args = parser.parse_args()
@@ -142,6 +143,7 @@ def main():
                 # dists_norm = dists / dists.sum(axis=1, keepdims=True)
                 label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                 pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
+                push_loss_scores = torch.mean(torch.sum(torch.mul(1-label_mask, torch.exp(scores)), dim=1))
                 #------class balanced cross entropy loss ---------
                 classes, count = labels.unique(return_counts=True, sorted=True)
                 class_count_dict = dict(zip(classes.tolist(), count.tolist()))
@@ -173,7 +175,7 @@ def main():
                 pt2 = torch.exp(-push_loss2)
                 focal_loss2 = ((1-pt2)**args.focal_gamma * push_loss2).mean()
 
-                loss = args.reg_pull * pull_loss + args.reg_focal1*focal_loss1 + args.reg_focal2*focal_loss2 #push_loss 
+                loss = args.reg_pull * pull_loss + args.reg_focal1*focal_loss1 + args.reg_focal2*focal_loss2 + args.reg_push*push_loss_scores
                 
                 optimizer.zero_grad()
                 loss.backward()
