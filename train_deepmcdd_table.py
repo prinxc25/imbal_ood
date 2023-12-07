@@ -32,7 +32,9 @@ parser.add_argument('--num_layers', type=int, default=3, help='the number of hid
 parser.add_argument('--num_folds', type=int, default=5, help='the number of cross-validation folds')
 parser.add_argument('--num_epochs', type=int, default=10, help='the number of epochs for training sc-layers')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='initial learning rate of Adam optimizer')
-parser.add_argument('--reg_lambda', type=float, default=1.0, help='regularization coefficient')
+parser.add_argument('--reg_pull', type=float, default=1.0, help='regularization coefficient for min dist')
+parser.add_argument('--reg_focal1', type=float, default=1.0, help='regularization coefficient for dists')
+parser.add_argument('--reg_focal2', type=float, default=1.0, help='regularization coefficient for scores')
 parser.add_argument('--gpu', type=int, default=0, help='gpu index')
 
 args = parser.parse_args()
@@ -129,10 +131,15 @@ def main():
                 data, labels = data.cuda(), labels.cuda()
 
                 dists, out, out_big = model(data)
-                scores = - dists + model.alphas
+                scores = (- dists + model.alphas)
+                # scores = (- dists + model.alphas)/model.alphas
+                # print(scores.shape)
+                # print(scores)
                 conf = torch.exp(-torch.min(dists, dim=1).values)
                 _, predicted = torch.max(scores, 1)
-
+                # print(dists)
+                # print(dists.shape)
+                # dists_norm = dists / dists.sum(axis=1, keepdims=True)
                 label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                 pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
                 #------class balanced cross entropy loss ---------
@@ -143,12 +150,31 @@ def main():
                 # alphaf = (1-betaf)/(1 - betaf**count)
                 for i in classes.tolist():
                      weights[i] = (1-betaf)/(1 - betaf**class_count_dict[i])
-                    
-                push_loss = ce_loss(scores, labels, weights)
+                # Normalize each row
+                # scores_norm = scores / scores.sum(axis=1, keepdims=True)  
+                # distance is the distance of data point from the class --- less the distance more is the probabbility
+                # so i will inverse the distance and hten normalise to send in focal loss
+                # Take the inverse of each element
+                dists = 1 / (dists + torch.exp(torch.tensor(10**(-12.0))))
+
+                # Normalize each row
+                # norm_dists= dists / dists.sum(axis=1, keepdims=True)
+                norm_dists= dists
+                # # Verify that each row has a sum of 1
+                # row_sums = norm_dists.sum(axis=1)
+                # print(row_sums)
+                # push_loss = ce_loss(scores, labels, weights)
+                push_loss1 = ce_loss(norm_dists, labels, weights)
+                push_loss2 = ce_loss(scores, labels, weights)
                 # push_loss = ce_loss(scores, labels) --- for what they have doen in deep mcdd -- use gamma 0 as well
-                pt = torch.exp(-push_loss)
-                focal_loss = ((1-pt)**args.focal_gamma * push_loss).mean()
-                loss = args.reg_lambda * pull_loss + focal_loss #push_loss 
+                pt1 = torch.exp(-push_loss1)
+                focal_loss1 = ((1-pt1)**args.focal_gamma * push_loss1).mean()
+
+                pt2 = torch.exp(-push_loss2)
+                focal_loss2 = ((1-pt2)**args.focal_gamma * push_loss2).mean()
+
+                loss = args.reg_pull * pull_loss + args.reg_focal1*focal_loss1 + args.reg_focal2*focal_loss2 #push_loss 
+                
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
