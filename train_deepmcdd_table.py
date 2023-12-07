@@ -35,6 +35,7 @@ parser.add_argument('--learning_rate', type=float, default=0.001, help='initial 
 parser.add_argument('--reg_pull', type=float, default=1.0, help='regularization coefficient for pull loss')
 parser.add_argument('--reg_push', type=float, default=1.0, help='regularization coefficient for push loss')
 parser.add_argument('--reg_focal', type=float, default=1.0, help='regularization coefficient for focal loss')
+parser.add_argument('--reg_conf', type=float, default=1.0, help='regularization coefficient for conf loss')
 parser.add_argument('--gpu', type=int, default=0, help='gpu index')
 
 args = parser.parse_args()
@@ -137,7 +138,7 @@ def main():
                 #print(label_mask)
                 my_out = torch.mul(label_mask,dists)
                 pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
-                push_loss = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(1,  (dists + torch.exp(torch.tensor(10**(-12.0)))))), dim=1))
+                push_loss = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(1,  (10*dists + torch.exp(torch.tensor(10**(-12.0)))))), dim=1))
                 
                 scores = - torch.abs(dists) + torch.mul(param,radii1) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
                 predicted = torch.argmax(scores, 1)
@@ -158,9 +159,10 @@ def main():
                      weights[i] = (1-betaf)/(1 - betaf**class_count_dict[i])
                 # alphaf = torch.cat((alphaf, torch.tensor([1]).cuda()))
                 # print(f"alpha :{weights}")
-                focal_loss = ce_loss(scores_12, labels, weights)
-                
-                loss =  args.reg_pull*pull_loss + args.reg_push*push_loss + args.reg_focal*focal_loss
+                # focal_loss = ce_loss(scores_12, labels, weights)
+                focal_loss = ce_loss(scores, labels, weights)
+                loss =  args.reg_pull*pull_loss + args.reg_push*push_loss + args.reg_focal*focal_loss #+ args.reg_conf*torch.div(1, conf + torch.exp(torch.tensor(10**(-12.0))))
+                # print(args.reg_pull*pull_loss , args.reg_push*push_loss , args.reg_focal*focal_loss)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
@@ -230,7 +232,7 @@ def main():
                         #my_out_test_id = out+labels
                         out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
                     #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
-                print("done validating")   
+                # print("done validating")   
                 # print(f"centre from val: {model.centers}")
                 # print(f"for validation radii:{radii1}, \n alpha : {param}")
 
@@ -270,7 +272,7 @@ def main():
                 #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
             # print(f"centre from test: {model.centers}")
             # print(f"for test radii:{radii11}, \n alpha : {param1}")
-            print("done testing")  
+            # print("done testing")  
     
 
     ###----------saving model -----------------###
