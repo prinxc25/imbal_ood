@@ -32,7 +32,9 @@ parser.add_argument('--num_layers', type=int, default=3, help='the number of hid
 parser.add_argument('--num_folds', type=int, default=5, help='the number of cross-validation folds')
 parser.add_argument('--num_epochs', type=int, default=10, help='the number of epochs for training sc-layers')
 parser.add_argument('--learning_rate', type=float, default=0.001, help='initial learning rate of Adam optimizer')
-parser.add_argument('--reg_lambda', type=float, default=1.0, help='regularization coefficient')
+parser.add_argument('--reg_pull', type=float, default=1.0, help='regularization coefficient for pull loss')
+parser.add_argument('--reg_push', type=float, default=1.0, help='regularization coefficient for push loss')
+parser.add_argument('--reg_focal', type=float, default=1.0, help='regularization coefficient for focal loss')
 parser.add_argument('--gpu', type=int, default=0, help='gpu index')
 
 args = parser.parse_args()
@@ -131,28 +133,20 @@ def main():
                 radii1 = torch.exp(model.logsigmas)
                 param = torch.exp(model.param)
                 #scores = - dists + model.alphas #----
-                scores = - torch.abs(dists) + torch.mul(param,radii1) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
-                #conf, _ = torch.max(scores, dim=1)
-                #print(scores)
-                #_, predicted = torch.argmax(scores, 1)
-                predicted = torch.argmax(scores, 1)
-                #print(f'shape train of out feature {out_big.shape}, of predicted {predicted.shape}')
-                ##---way 1-----------
-                # scores_12 = torch.exp(torch.div(scores, torch.mul(param,radii1))-1)
-                ## way 2----------------------
-                scores_12 = torch.exp(0.65*(torch.div(scores, torch.mul(param,radii1))-1)) + torch.exp(torch.tensor(10**(-12.0)))
-                # multiplying buy 0.69 so that at circumference prob is a little more than 0.5
-                # adding torch.exp(10**(-12)) for stability
-                scores_12 = torch.nn.functional.normalize(scores_12 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
-                conf, _ = torch.max(scores_12, dim=1)
                 label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
                 #print(label_mask)
-                #my_out = torch.mul(label_mask, (dists+centr))
                 my_out = torch.mul(label_mask,dists)
-                pull_loss1 = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
-                push_loss1 = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(args.reg_lambda,  dists)), dim=1))
-                #push_loss1 = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(1, torch.mul(torch.abs(model.alphas), dists))), dim=1)) #---this is working fine as of now -- push lloss
-                #========focal loss class balanced ------------
+                pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
+                push_loss = torch.mean(torch.sum(torch.mul(1-label_mask, torch.div(1,  (dists + torch.exp(torch.tensor(10**(-12.0)))))), dim=1))
+                
+                scores = - torch.abs(dists) + torch.mul(param,radii1) #----if it was in cluster score with be positive otherwise negative  ---so in prediction we take max
+                predicted = torch.argmax(scores, 1)
+                #my_out = torch.mul(label_mask, (dists+centr))
+                scores_12 = torch.exp(0.65*(torch.div(scores, torch.mul(param,radii1))-1)) + torch.exp(torch.tensor(10**(-12.0)))
+    
+                scores_12 = torch.nn.functional.normalize(scores_12 , p=2, dim=1)#--- row normalizing for scores to be of probability nature
+              
+                conf, _ = torch.max(scores_12, dim=1)
 
                 #------class balanced cross entropy loss ---------
                 classes, count = labels.unique(return_counts=True, sorted=True)
@@ -164,10 +158,9 @@ def main():
                      weights[i] = (1-betaf)/(1 - betaf**class_count_dict[i])
                 # alphaf = torch.cat((alphaf, torch.tensor([1]).cuda()))
                 # print(f"alpha :{weights}")
-                pull_loss2 = ce_loss(scores_12, labels, weights)
-                # pull_loss2 = ce_loss(scores_12, labels)#---the probem is happening here----scores are negative tooo -- pull loss
-                #loss = args.reg_lambda * pull_loss + push_loss 
-                loss =  pull_loss1 + push_loss1 + pull_loss2 
+                focal_loss = ce_loss(scores_12, labels, weights)
+                
+                loss =  args.reg_pull*pull_loss + args.reg_push*push_loss + args.reg_focal*focal_loss
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
