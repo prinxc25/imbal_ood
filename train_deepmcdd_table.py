@@ -72,7 +72,7 @@ def main():
         
         #model_mcdd = models.MLP_DeepMCDD(num_features, args.num_layers*[args.latent_size], num_classes=num_classes-1)
         if args.model_path == 0:
-           model = models.MLP_DeepMCDD(num_features, args.num_layers*[args.latent_size], num_classes=num_classes-1)
+           model = models.MLP(num_features, args.num_layers*[args.latent_size], num_classes=num_classes-1)
         else:
             model = torch.load(args.model_path) 
         # ## semi-supervised-------
@@ -90,7 +90,7 @@ def main():
        # num_layers = the number of hidden layers in MLP, default = 3
         ce_loss = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-   
+      
         #idacc_list1, idacc_list2, idacc_list3, idacc_list4, idacc_list5, idacc_list6, idacc_list7, idacc_list8, idacc_list9 = [],[],[],[],[],[],[],[],[]
         #--------------------------TRAIN DATA--------------------------------------
         idacc_list, oodacc_list = [], []
@@ -105,23 +105,30 @@ def main():
             for i, (data, labels) in enumerate(train_loader):
                 
                 data, labels = data.cuda(), labels.cuda()
+                # print(labels)
+                mout= model(data)
+                # Apply softmax along the last axis (axis=1)
+                out = torch.exp(mout) / torch.sum(torch.exp(mout), dim=1, keepdim=True)
 
-                dists, out, out_big = model(data)
-                scores = - dists + model.alphas
-                conf, _ = torch.min(dists, dim=1)
-                _, predicted = torch.max(scores, 1)
-
-                label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
-                pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
-                push_loss = ce_loss(scores, labels)
-                loss = args.reg_lambda * pull_loss + push_loss 
+                _, conf = torch.max(out, 1)
+                predicted = torch.argmax(out, dim = 1)
+                # print(sout.shape, sout)
+                # print(predicted.shape, predicted)
+                
+                loss = ce_loss(out, labels)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item() 
-                for j in range(len(out_big)):
-                    #labels_list.append(labels[j].squeeze().tolist())
-                    out_feat_train.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+ [predicted[j].squeeze().tolist()] +scores[j,:].squeeze().tolist()+ [conf[j].squeeze().tolist()] )
+                # print(out[1].tolist())
+                # print([labels[1].item()])
+                # print([predicted[1].item()])
+                # print([conf[1].item()] )
+                for j in range(len(out)):
+                  
+                  #labels_list.append(labels[j].squeeze().tolist())
+                  out_feat_train.append(out[j].tolist()+ [labels[j].item()]+ [predicted[j].item()] + [conf[j].item()] )
+
             print(f'loss for epoch {epoch} is : {loss}')
             # print(f"centre from train: {model.centers}")
             # print(f"for train radii:{radii1}, \n alpha : {param}")
@@ -133,65 +140,51 @@ def main():
                 #correct1, total1 = 0, 0
                 out_feat_test = []
 
-                
-                # dataloader_iterator = iter(test_id_loader)
-                
-                # for i, (data,labels) in enumerate(test_ood_loader):
-
-                #     try:
-                #         data1, labels1 = next(dataloader_iterator) # 
-                #     except StopIteration:
-                #         dataloader_iterator = iter(test_id_loader)
-                #         data1, labels1 = next(dataloader_iterator)
-
-                #for i, ((data,labels), (data1, labels1)) in enumerate(zip(test_id_loader, test_ood_loader)):
-                #------------------------VAL DATA------------------------------------
                 for i, (data, labels) in enumerate(test_id_loader):
                     #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
-                   
+                    
                     data, labels = data.cuda(), labels.cuda()
-                    dists, out, out_big = model(data)
-                    scores = -dists + model.alphas
-                    # _, predicted = torch.max(scores, 1)
-                    # conf, _ = torch.exp(torch.min(dists, dim=1)) # making exp confidence to bound the conf
-                    conf= torch.exp(-torch.min(dists, dim=1).values) # making exp confidence to bound the conf
+                    mout = model(data)
+                    # Apply softmax along the last axis (axis=1)
+                    out = torch.exp(mout) / torch.sum(torch.exp(mout), dim=1, keepdim=True)
+
+                    conf= torch.max(out, dim=1).values # making exp confidence to bound the conf
                     # ----- bounding the confidence they produce and marking ood if exp_conf <= 0.5:
                     predicted= -1 + torch.zeros(len(labels), dtype=torch.int64) # inittializing everything as -1
                     predicted = predicted.cuda()
-                    for i in range(len(scores)):
+                    for i in range(len(out)):
                         if (conf[i] > args.conf): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
-                           predicted[i] = torch.argmax(scores[i])
+                           predicted[i] = torch.argmax(out[i])
                     #conf, _ = torch.min(dists, dim=1)
-                    for j in range(len(out_big)):
+                    for j in range(len(out)):
                     #labels_list_test.append([j].squeeze().tolist())
                         #my_out_test_id = out+labels
-                        out_feat_test.append(out_big[j][0].squeeze().tolist()+ [labels[j].squeeze().tolist()]+[predicted[j].squeeze().tolist()] + scores[j,:].squeeze().tolist() + [conf[j].squeeze().tolist()])
-                    #print(f' shape of val test data :{len(out_feat_test)}, {len(out_feat_test[0])}')
-                   
-                # print(f"centre from val: {model.centers}")
-                # print(f"for validation radii:{radii1}, \n alpha : {param}")
+                      out_feat_test.append(out[j].tolist()+ [labels[j].item()]+ [predicted[j].item()] +[conf[j].item()])
 
+            
+            
             correct1, total1 = 0, 0
             out_feat_test1 = []
             for i, (data1, labels1) in enumerate(test_ood_loader):
                 data1, labels1 = data1.cuda(), labels1.cuda()
                 
                 #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
-                dists1, out1, out_big1 = model(data1)
-                scores1 = -dists1 + model.alphas
-                # _, predicted1 = torch.max(scores1, 1)
-                # conf1, _ = torch.min(dists1, dim=1)
-                conf1= torch.exp(-torch.min(dists1, dim=1).values) # making exp confidence to bound the conf
+                mout1= model(data1)
+                # Apply softmax along the last axis (axis=1)
+                out1 = torch.exp(mout1) / torch.sum(torch.exp(mout1), dim=1, keepdim=True)
+                conf1= torch.max(out1, dim=1).values # making exp confidence to bound the conf
                     # ----- bounding the confidence they produce and marking ood if exp_conf <= 0.5:
                 predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
                 predicted1 = predicted1.cuda()
-                for i in range(len(scores1)):
+                for i in range(len(out1)):
                     if (conf1[i] > args.conf): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
-                        predicted1[i] = torch.argmax(scores1[i])
-                for j in range(len(out_big1)):
+                        predicted1[i] = torch.argmax(out1[i])
+                for j in range(len(out1)):
 
-                    out_feat_test1.append(out_big1[j][0].squeeze().tolist()+[labels1[j].squeeze().tolist()]+[predicted1[j].squeeze().tolist()]+ scores1[j,:].squeeze().tolist()+ [conf1[j].squeeze().tolist()])
-                #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
+                    out_feat_test1.append(out1[j].tolist()+ [labels1[j].item()]+ [predicted1[j].item()]  + [conf1[j].item()])
+
+            #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
+
             # print(f"centre from test: {model.centers}")
             # print(f"for test radii:{radii11}, \n alpha : {param1}")
     
@@ -227,7 +220,7 @@ def main():
     
     #--------------getting accurtacy ---precison _f1 score and recall------------
     #---------for train data--------------------
-    hidden_size = 128
+    hidden_size = num_classes -1
     print(f'accuracy, precison, recall, anf f1 score for TRAIN DATA')
     # Get the confusion matrix
     #directory = 'C:/Users/e117907/OneDrive - Mastercard/Desktop/Semi_supervised/DeepMCDD-master/output/'
