@@ -114,8 +114,8 @@ class MLP_SoftMCDD(nn.Module):
         self.num_classes = num_classes
         self.epsilon = epsilon
 
-        self.centers = torch.zeros([num_classes, self.latent_size]).cuda()
-        self.radii = torch.ones(num_classes).cuda()
+        self.centers = torch.zeros([num_classes, self.latent_size]).cpu()
+        self.radii = torch.ones(num_classes).cpu()
 
         self.build_fe()
         self.init_fe_weights()
@@ -143,12 +143,12 @@ class MLP_SoftMCDD(nn.Module):
 
     def update_centers(self, data_loader):
         class_outputs = {i : [] for i in range(self.num_classes)}
-        centers = torch.zeros([self.num_classes, self.latent_size]).cuda()
+        centers = torch.zeros([self.num_classes, self.latent_size]).cpu()
 
         with torch.no_grad():
             for data in data_loader:
                 inputs, labels = data
-                inputs, labels = inputs.cuda(), labels.cuda()
+                inputs, labels = inputs.cpu(), labels.cpu()
                 outputs = self._forward(inputs)
 
                 for k in range(self.num_classes):
@@ -168,7 +168,7 @@ class MLP_SoftMCDD(nn.Module):
         with torch.no_grad():
             for data in data_loader:
                 inputs, labels = data
-                inputs, labels = inputs.cuda(), labels.cuda()
+                inputs, labels = inputs.cpu(), labels.cpu()
                 scores = self.forward(inputs)
 
                 for k in range(self.num_classes):
@@ -179,18 +179,18 @@ class MLP_SoftMCDD(nn.Module):
             class_scores[k] = torch.cat(class_scores[k], dim=0)
             radii[k] = np.quantile(class_scores[k].cpu().numpy(), 1 - self.epsilon)
 
-        self.radii = torch.Tensor(radii).cuda()
+        self.radii = torch.Tensor(radii).cpu()
 
     def update_centers_and_radii(self, data_loader):
         class_outputs = {i : [] for i in range(self.num_classes)}
         class_scores = {i : [] for i in range(self.num_classes)}
-        centers = torch.zeros([self.num_classes, self.latent_size]).cuda()
+        centers = torch.zeros([self.num_classes, self.latent_size]).cpu()
         radii = np.zeros(self.num_classes)
 
         with torch.no_grad():
             for data in data_loader:
                 inputs, labels = data
-                inputs, labels = inputs.cuda(), labels.cuda()
+                inputs, labels = inputs.cpu(), labels.cpu()
                 outputs, scores = self._forward(inputs), self.forward(inputs)
 
                 for k in range(self.num_classes):
@@ -205,7 +205,7 @@ class MLP_SoftMCDD(nn.Module):
             radii[k] = np.quantile(class_scores[k].cpu().numpy(), 1 - self.epsilon)
 
         self.centers.data = centers
-        self.radii = torch.Tensor(radii).cuda()
+        self.radii = torch.Tensor(radii).cpu()
 
     def _forward(self, x):
         for i, layer in enumerate(self.layers):
