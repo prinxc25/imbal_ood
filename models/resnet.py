@@ -241,7 +241,7 @@ class ResNet_DeepMCDD(nn.Module):
         self.centers = torch.nn.Parameter(torch.zeros([num_classes, latent_size]), requires_grad=True)
         self.alphas = torch.nn.Parameter(torch.ones(num_classes), requires_grad=True)
         self.logsigmas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)
-        self.radii = torch.ones(num_classes).cuda()
+        self.radii = torch.ones(num_classes).cpu()
 
         self.fe = ResNet34(num_c=num_classes)
         self.init_weights()
