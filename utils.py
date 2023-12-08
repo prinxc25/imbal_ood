@@ -17,7 +17,7 @@ def compute_confscores(model, test_loader, outdir, id_flag):
     f = open(outfile, 'w')
     
     for data, _ in test_loader:
-        dists = model(data.cuda())
+        dists = model(data.cpu())
         confscores, _ = torch.min(dists, dim=1)
         total += data.size(0)
 
