@@ -36,7 +36,7 @@ parser.add_argument('--reg_pull', type=float, default=1.0, help='regularization 
 parser.add_argument('--reg_focal1', type=float, default=1.0, help='regularization coefficient for dists')
 parser.add_argument('--reg_focal2', type=float, default=1.0, help='regularization coefficient for scores')
 parser.add_argument('--reg_push', type=float, default=0.01, help='regularization coefficient for scores based mean loss')
-parser.add_argument('--gpu', type=int, default=0, help='gpu index')
+parser.add_argument('--gpu', type=int, default=-1, help='gpu index')
 
 args = parser.parse_args()
 print(args)
@@ -53,8 +53,8 @@ def main():
         os.mkdir(outdir)
 
     torch.manual_seed(0)
-    torch.cuda.manual_seed_all(0)
-    torch.cuda.set_device(args.gpu)
+    torch.cuda.manual_seed(0)
+    # torch.cpu.set_device(args.gpu)
 
     best_idacc_list, best_oodacc_list = [], []
     for fold_idx in range(args.num_folds):
@@ -87,13 +87,13 @@ def main():
         #                                      max_iter=100, # default=10, Maximum number of iterations allowed. Should be greater than or equal to 0. If it is None, the classifier will continue to predict labels until no new pseudo-labels are added, or all unlabeled samples have been labeled.
         #                                      verbose=True # default=False, Verbosity prints some information after each iteration
         #                                     )
-        model.cuda()
+        model.cpu()
         #class MLP_DeepMCDD(nn.Module):
         #def __init__(self, input_size, hidden_sizes, num_classes)
         # latent_size = dimension size for latent representation, default = 128
         # num_layers = the number of hidden layers in MLP, default = 3
         # ce_loss = torch.nn.CrossEntropyLoss()
-        weights = torch.ones(num_classes-1).cuda()
+        weights = torch.ones(num_classes-1).cpu()
         def ce_loss(predicted, labels, weights=None):
             """
             Compute cross-entropy loss with optional class weights.
@@ -129,7 +129,7 @@ def main():
             total_data = 0
             for i, (data, labels) in enumerate(train_loader):
                 
-                data, labels = data.cuda(), labels.cuda()
+                data, labels = data.cpu(), labels.cpu()
 
                 dists, out, out_big = model(data)
                 scores = (- dists + model.alphas)
@@ -141,7 +141,7 @@ def main():
                 # print(dists)
                 # print(dists.shape)
                 # dists_norm = dists / dists.sum(axis=1, keepdims=True)
-                label_mask = torch.zeros(labels.size(0), model.num_classes).cuda().scatter_(1, labels.unsqueeze(dim=1), 1)
+                label_mask = torch.zeros(labels.size(0), model.num_classes).cpu().scatter_(1, labels.unsqueeze(dim=1), 1)
                 pull_loss = torch.mean(torch.sum(torch.mul(label_mask, dists), dim=1))
                 push_loss_scores = torch.mean(torch.sum(torch.mul(1-label_mask, torch.exp(scores)), dim=1))
                 #------class balanced cross entropy loss ---------
@@ -211,7 +211,7 @@ def main():
                 for i, (data, labels) in enumerate(test_id_loader):
                     #print(f' shape of i :{i}, shape of val dataloader: {len(data)}, shape of test_dataloader :{len(data1)}')
                    
-                    data, labels = data.cuda(), labels.cuda()
+                    data, labels = data.cpu(), labels.cpu()
                     dists, out, out_big = model(data)
                     scores = -dists + model.alphas
                     # _, predicted = torch.max(scores, 1)
@@ -219,7 +219,7 @@ def main():
                     conf= torch.exp(-torch.min(dists, dim=1).values) # making exp confidence to bound the conf
                     # ----- bounding the confidence they produce and marking ood if exp_conf <= 0.5:
                     predicted= -1 + torch.zeros(len(labels), dtype=torch.int64) # inittializing everything as -1
-                    predicted = predicted.cuda()
+                    predicted = predicted.cpu()
                     for i in range(len(scores)):
                         if (conf[i] > args.conf): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
                            predicted[i] = torch.argmax(scores[i])
@@ -236,7 +236,7 @@ def main():
             correct1, total1 = 0, 0
             out_feat_test1 = []
             for i, (data1, labels1) in enumerate(test_ood_loader):
-                data1, labels1 = data1.cuda(), labels1.cuda()
+                data1, labels1 = data1.cpu(), labels1.cpu()
                 
                 #print(f'shape ood of labels :{labels1.shape}, of data {data1.shape}')#, out1.shape)
                 dists1, out1, out_big1 = model(data1)
@@ -246,7 +246,7 @@ def main():
                 conf1= torch.exp(-torch.min(dists1, dim=1).values) # making exp confidence to bound the conf
                     # ----- bounding the confidence they produce and marking ood if exp_conf <= 0.5:
                 predicted1= -1 + torch.zeros(len(labels1), dtype=torch.int64) # inittializing everything as -1
-                predicted1 = predicted1.cuda()
+                predicted1 = predicted1.cpu()
                 for i in range(len(scores1)):
                     if (conf1[i] > args.conf): #or (torch.max(scores1[i]) >= 0.5): # --- positive score means within the cluster,
                         predicted1[i] = torch.argmax(scores1[i])
