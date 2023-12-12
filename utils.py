@@ -17,7 +17,8 @@ def compute_confscores(model, test_loader, outdir, id_flag):
     f = open(outfile, 'w')
     
     for data, _ in test_loader:
-        dists = model(data.cuda())
+        # dists = model(data.cuda())
+        dists, out, out_big = model(data.cuda())
         confscores, _ = torch.min(dists, dim=1)
         total += data.size(0)
 
@@ -27,8 +28,12 @@ def compute_confscores(model, test_loader, outdir, id_flag):
     f.close()
 
 def get_auroc_curve(indir):
-    known = np.loadtxt(os.path.join(indir, 'confscores_id.txt'), delimiter='\n')
-    novel = np.loadtxt(os.path.join(indir, 'confscores_ood.txt'), delimiter='\n')
+    # known = np.loadtxt(os.path.join(indir, 'confscores_id.txt'), delimiter='\n')
+
+    # novel = np.loadtxt(os.path.join(indir, 'confscores_ood.txt'), delimiter='\n')
+    known = np.loadtxt(os.path.join(indir, 'confscores_id.txt'))#, delimiter='\n')
+    
+    novel = np.loadtxt(os.path.join(indir, 'confscores_ood.txt'))#, delimiter='\n')
     known.sort()
     novel.sort()
     
