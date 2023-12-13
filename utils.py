@@ -169,7 +169,7 @@ def print_ood_results_total(ood_result_list):
     print('')
 
 
-def save_and_evaluate_at_epoch(epoch, model, out_feat_train, out_feat_test, out_feat_test1, outdir):
+def save_at_epoch(epoch, model, out_feat_train, out_feat_test, out_feat_test1, outdir):
     # Saving the model
     model_filename = f'model_saved_epoch_{epoch}.pt'
     torch.save(model, os.path.join(outdir, model_filename))
@@ -181,14 +181,15 @@ def save_and_evaluate_at_epoch(epoch, model, out_feat_train, out_feat_test, out_
 
     # Evaluating classification metrics
     df1 = pd.DataFrame(out_feat_train, columns=[f'feat_{x+1}' for x in range(len(out_feat_train[0]))])
-    evaluate_classification_metrics(df1, 'Train', outdir)
+    # evaluate_classification_metrics(df1, 'Train', outdir)
 
     # evaluate_classification_metrics(out_feat_test, 'Validation', outdir)
     df2 = pd.DataFrame(out_feat_test, columns=[f'feat_{x+1}' for x in range(len(out_feat_test[0]))])
     df3 = pd.DataFrame(out_feat_test1, columns=[f'feat_{x+1}' for x in range(len(out_feat_test1[0]))])
 
-    evaluate_classification_metrics(pd.concat([df2, df3]), 'Validation and OOD', outdir)
-    evaluate_classification_metrics(df3, 'Test OOD', outdir)
+    # evaluate_classification_metrics(pd.concat([df2, df3]), 'Validation and OOD', outdir)
+    # evaluate_classification_metrics(df3, 'Test OOD', outdir)
+    return df1, df2, df3
 
 def save_representation(features, filename, outdir):
     outfile = os.path.join(outdir, filename)
@@ -198,14 +199,8 @@ def save_representation(features, filename, outdir):
 
 def evaluate_classification_metrics(features, dataset_type, outdir):
     hidden_size = 128
-    print(f'Accuracy, precision, recall, and F1 score for {dataset_type} DATA')
-    
-    # df = pd.DataFrame(features, columns=[f'feat_{x+1}' for x in range(len(features[0]))])
     df = features
     col = list(df.columns)
-    print(f"{dataset_type} {df.shape}")
-    print(f'value count for test label {df[col[hidden_size]].value_counts()}')
-    print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
     label = list(df[col[hidden_size]].unique())
     label.sort()
     if dataset_type != 'Test OOD':
@@ -220,45 +215,64 @@ def evaluate_classification_metrics(features, dataset_type, outdir):
             true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
             true_positives = cm[idx, idx]
             per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
+            a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
+    
+    else: 
+        a=[],    per_class_accuracies =[]   
 
-        a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
+    # Code for overall classification metrics...
+    p,r,f,supp = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average='micro')
+    acc = balanced_accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]))#, normalize = True)
+    shape_df = df.shape[0]
+    return dataset_type , a, per_class_accuracies, p,r,f,supp, acc, shape_df, label
+
+
+def best_classification_metrics(dataset_type, arr, python_script_name , outdir,  args ):
+
+    prf_per_class = arr[0], per_class_accuracies =arr[1], p = arr[2],r =arr[3],\
+    f=arr[4],supp =arr[5], balanced_acc =arr[6], label=arr[7], shape_df =arr[8]
+    print(f'Accuracy, precision, recall, and F1 score for {dataset_type} DATA')
+
+    if dataset_type != 'Test OOD':
+        a = prf_per_class
+        per_class_acc = per_class_accuracies
         # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
         for i in range(len(a[0])):
-            print(f'for {dataset_type}  class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+            print(f'for {dataset_type}  class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_acc[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
           
-    # if dataset_type != 'Train':   
-    #     # # Check if the file exists
-    #     if os.path.exists(file_path):
-    #         print(f"The file '{file_name}' exists in the directory.")
-      
-    #     # col = ['file_name','data','num_layers', 'num_epoch', 'metrics_type', 'accuracy', 'precision', 'recall',
-    #     #    'f1_score', 'supp',  'reg_push', 'reg_pull',
-    #     #    'reg_focal1', 'focal_gamma1', 'reg_focal2', 'focal_gamma2',
-    #     #    'reg_another']
-    #     # dfacc = pd.DataFrame(columns=col)
-    #     # print(supp)
-    #     dfacc = pd.read_csv('accuracy_for_various_models.csv', index_col=0)# ---- for adding everything in a csv
-    #     """
-    #     In macro averaging, you calculate the metric independently for each class and then take the average.
-    #     Each class is given equal weight in the computation of the average.
-    #     This means that the metric is not biased towards the majority class and treats all classes equally.
-    #     In weighted averaging, you calculate the metric for each class, but the contribution of each class
-    #     is weighted by its support (the number of true instances).
-    #     This means that classes with more instances have a greater impact on the average.
-    #     """
-    #     another = 'another_scores_0'
-    #     new_row = {'file_name':another, 'metrics_type':'validation', 'data':args.dataset, 'accuracy':acc, 'precision':p,
-    #       'recall':r,'f1_score':f, 'supp':df1.shape[0], 'num_layers': args.num_layers, 'num_epoch': args.num_epochs, 'reg_push':args.reg_push,
-    #         'reg_pull':args.reg_pull,'reg_focal1':args.reg_focal1, 'focal_gamma1':args.focal_gamma1, 'reg_focal2':args.reg_focal2,
-    #         'focal_gamma2':args.focal_gamma2,
-    #       'reg_another':args.reg_another}
-    #     # Append the dictionary as a row to the DataFrame
-    #     dfacc = dfacc.append(new_row, ignore_index=True)
+    if dataset_type != 'Train':   
+        # # Check if the file exists
+        file_path = os.path.join(outdir, 'accuracy_for_various_models.csv')
+        if os.path.exists(file_path):
+          
+          colacc = ['file_name','data','num_layers', 'num_epoch', 'metrics_type', 'accuracy', 'precision', 'recall',
+            'f1_score', 'supp',  'reg_push', 'reg_pull',
+            'reg_focal1', 'focal_gamma1', 'reg_focal2', 'focal_gamma2',
+            'reg_another']
+          dfacc = pd.DataFrame(columns=colacc)
+          # print(supp)
+        else:  
+          dfacc = pd.read_csv(file_path, index_col=0)# ---- for adding everything in a csv
+        """
+        In macro averaging, you calculate the metric independently for each class and then take the average.
+        Each class is given equal weight in the computation of the average.
+        This means that the metric is not biased towards the majority class and treats all classes equally.
+        In weighted averaging, you calculate the metric for each class, but the contribution of each class
+        is weighted by its support (the number of true instances).
+        This means that classes with more instances have a greater impact on the average.
+        """
+        another = python_script_name
+        new_row = {'file_name':another, 'metrics_type':'validation', 'data':args.dataset, 'accuracy':acc, 'precision':p,
+          'recall':r,'f1_score':f, 'supp':shape_df, 'num_layers': args.num_layers, 'num_epoch': args.num_epochs, 'reg_push':args.reg_push,
+            'reg_pull':args.reg_pull,'reg_focal1':args.reg_focal1, 'focal_gamma1':args.focal_gamma1, 'reg_focal2':args.reg_focal2,
+            'focal_gamma2':args.focal_gamma2,'reg_another':args.reg_another}
+        # Append the dictionary as a row to the DataFrame
+        dfacc = dfacc.append(new_row, ignore_index=True)
   
 
     print(f"overall classification {dataset_type} ")
     # Code for overall classification metrics...
-    p,r,f,supp = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average='micro')
-    acc = balanced_accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]))#, normalize = True)
-    print(f" overall accuracy : {acc} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
+    # p,r,f,supp = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average='micro')
+    # acc = balanced_accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]))#, normalize = True)
+    print(f" overall accuracy : {balanced_acc} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
     
