@@ -10,7 +10,7 @@ from sklearn.metrics import confusion_matrix
 from dataloader_table import get_table_data
 # from dataloader_table import get_table_data_with_iden
 from dataloader_table import get_table_data_with_iden_separate_sets
-from utils import compute_confscores, compute_metrics, print_ood_results, print_ood_results_total
+from utils import compute_confscores, compute_metrics, print_ood_results, print_ood_results_total, save_and_evaluate_at_epoch
 #from sklearn.semi_supervised import SelfTrainingClassifier # for Semi-Supervised learning
 #from datetime import date
 #from datetime import timedelta
@@ -205,117 +205,117 @@ def main():
     
         best_idacc = max(idacc_list)
         best_oodacc = oodacc_list[idacc_list.index(best_idacc)]
-      
-    print('== {fidx:1d}-th fold results =='.format(fidx=fold_idx+1))
-    print('The best ID accuracy on "{idset:s}" test samples : {val:6.2f}'.format(idset=args.dataset, val=best_idacc))
-    print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset=args.dataset+'_'+str(args.oodclass_idx)))
-    print_ood_results(best_oodacc)
-
-    best_idacc_list.append(best_idacc)
-    best_oodacc_list.append(best_oodacc)
+        save_and_evaluate_at_epoch(epoch, model, out_feat_train, out_feat_test, out_feat_test1, outdir)
+        print('== {fidx:1d}-th fold results =='.format(fidx=fold_idx+1))
+        print('The best ID accuracy on "{idset:s}" test samples : {val:6.2f}'.format(idset=args.dataset, val=best_idacc))
+        print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset=args.dataset+'_'+str(args.oodclass_idx)))
+        print_ood_results(best_oodacc)
+        
+        best_idacc_list.append(best_idacc)
+        best_oodacc_list.append(best_oodacc)
 
     print('== Final results ==')
     print('The best ID accuracy on "{idset:s}" test samples : {mean:6.2f} ({std:6.3f})'.format(idset=args.dataset, mean=np.mean(best_idacc_list), std=np.std(best_idacc_list)))
     print('The best OOD accuracy on "{oodset:s}" test samples :'.format(oodset='class_'+str(args.oodclass_idx)))
     print_ood_results_total(best_oodacc_list)
-    ###----------saving model -----------------###
-    torch.save(model, outdir+'model_saved'+str(args.dataset)+'.pt')
+    # ###----------saving model -----------------###
+    # torch.save(model, outdir+'model_saved'+str(args.dataset)+'.pt')
 
-    print(f' shape of complete train data_from dataloader: {len(out_feat_train)}, of validation : {len(out_feat_test)} of ood:{ len(out_feat_test1)}')
-    #----trying to store representation  as text files
-    outfile = os.path.join(outdir, 'latent_train_representation.csv')
-    f = open(outfile, 'w')
-    for i in range(len(out_feat_train)):
-        f.write("{}\n".format(out_feat_train[i]))
+    # print(f' shape of complete train data_from dataloader: {len(out_feat_train)}, of validation : {len(out_feat_test)} of ood:{ len(out_feat_test1)}')
+    # #----trying to store representation  as text files
+    # outfile = os.path.join(outdir, 'latent_train_representation.csv')
+    # f = open(outfile, 'w')
+    # for i in range(len(out_feat_train)):
+    #     f.write("{}\n".format(out_feat_train[i]))
 
-    f.close()
+    # f.close()
 
-    #----va;lidation ---------
-    outfile = os.path.join(outdir, 'latent_val_representation.csv')
-    f = open(outfile, 'w')
-    for i in range(len(out_feat_test)):
-        f.write("{}\n".format(out_feat_test[i]))
+    # #----va;lidation ---------
+    # outfile = os.path.join(outdir, 'latent_val_representation.csv')
+    # f = open(outfile, 'w')
+    # for i in range(len(out_feat_test)):
+    #     f.write("{}\n".format(out_feat_test[i]))
 
-    f.close()
+    # f.close()
 
-    #----test -- ood ---------
-    outfile = os.path.join(outdir, 'latent_test_ood_representation.csv')
-    f = open(outfile, 'w')
-    for i in range(len(out_feat_test1)):
-        f.write("{}\n".format(out_feat_test1[i]))
+    # #----test -- ood ---------
+    # outfile = os.path.join(outdir, 'latent_test_ood_representation.csv')
+    # f = open(outfile, 'w')
+    # for i in range(len(out_feat_test1)):
+    #     f.write("{}\n".format(out_feat_test1[i]))
 
-    f.close()
+    # f.close()
 
     
-    #--------------getting accurtacy ---precison _f1 score and recall------------
-    #---------for train data--------------------
-    hidden_size = 128
-    print(f'accuracy, precison, recall, anf f1 score for TRAIN DATA')
-    # Get the confusion matrix
-    #directory = 'C:/Users/e117907/OneDrive - Mastercard/Desktop/Semi_supervised/DeepMCDD-master/output/'
-    # df = pd.read_csv(directory+ str(args.net_type)+'_'+ str(args.dataset) +'/latent_train_representation.csv')
-    df = pd.read_csv(outdir+'/latent_train_representation.csv')
-    df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
+    # #--------------getting accurtacy ---precison _f1 score and recall------------
+    # #---------for train data--------------------
+    # hidden_size = 128
+    # print(f'accuracy, precison, recall, anf f1 score for TRAIN DATA')
+    # # Get the confusion matrix
+    # #directory = 'C:/Users/e117907/OneDrive - Mastercard/Desktop/Semi_supervised/DeepMCDD-master/output/'
+    # # df = pd.read_csv(directory+ str(args.net_type)+'_'+ str(args.dataset) +'/latent_train_representation.csv')
+    # df = pd.read_csv(outdir+'/latent_train_representation.csv')
+    # df.columns =  ['feat_'+str(x+1) for x in range(len(df.columns))]
     
-    col = list(df.columns)
-    print(f'value count for train label {df[col[hidden_size]].value_counts()}')
-    print(f'value count for train predicted {df[col[hidden_size + 1]].value_counts()}')
-    label = list(df[col[hidden_size]].unique())
-    label.sort()
-    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), labels = label)
-    print(cm
-    )
-    # We will store the results in a dictionary for easy access later
-    per_class_accuracies = {}
-    for idx in range(len(label)):
-        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
-        true_positives = cm[idx, idx]
-        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
+    # col = list(df.columns)
+    # print(f'value count for train label {df[col[hidden_size]].value_counts()}')
+    # print(f'value count for train predicted {df[col[hidden_size + 1]].value_counts()}')
+    # label = list(df[col[hidden_size]].unique())
+    # label.sort()
+    # cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), labels = label)
+    # print(cm
+    # )
+    # # We will store the results in a dictionary for easy access later
+    # per_class_accuracies = {}
+    # for idx in range(len(label)):
+    #     true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
+    #     true_positives = cm[idx, idx]
+    #     per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
 
-    a = precision_recall_fscore_support(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
-    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
-    for i in range(len(a[0])):
-        print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+    # a = precision_recall_fscore_support(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
+    # # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
+    # for i in range(len(a[0])):
+    #     print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
 
-       #  #=========for test data===============
-    print(f'value count for indistribution and OOD TEST DATA ')
-    print(f'accuracy, precison, recall, anf f1 score for TEST DATA ')
-    # Get the confusion matrix
-    #print(args.dataset)
-    #locatio_n = '/output/'+str(args.dataset)
-    df1 = pd.read_csv(outdir + '/latent_val_representation.csv')
-    df1.columns =  ['feat_'+str(x+1) for x in range(len(df1.columns))]
-    df2 = pd.read_csv(outdir + '/latent_test_ood_representation.csv')
-    df2.columns =  ['feat_'+str(x+1) for x in range(len(df2.columns))]
-    print(f"val shape {df1.shape}, ood shape {df2.shape} ")
-    df = pd.concat([df1, df2])
-    col = list(df1.columns)
-    print(f'value count for test label {df[col[hidden_size]].value_counts()}')
-    print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
-    label = list(df[col[hidden_size]].unique())
-    label.sort()
-    cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
-    print(cm)
-    # We will store the results in a dictionary for easy access later
-    per_class_accuracies = {}
-    for idx in range(len(label)):
-        true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
-        true_positives = cm[idx, idx]
-        per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
+    #    #  #=========for test data===============
+    # print(f'value count for indistribution and OOD TEST DATA ')
+    # print(f'accuracy, precison, recall, anf f1 score for TEST DATA ')
+    # # Get the confusion matrix
+    # #print(args.dataset)
+    # #locatio_n = '/output/'+str(args.dataset)
+    # df1 = pd.read_csv(outdir + '/latent_val_representation.csv')
+    # df1.columns =  ['feat_'+str(x+1) for x in range(len(df1.columns))]
+    # df2 = pd.read_csv(outdir + '/latent_test_ood_representation.csv')
+    # df2.columns =  ['feat_'+str(x+1) for x in range(len(df2.columns))]
+    # print(f"val shape {df1.shape}, ood shape {df2.shape} ")
+    # df = pd.concat([df1, df2])
+    # col = list(df1.columns)
+    # print(f'value count for test label {df[col[hidden_size]].value_counts()}')
+    # print(f'value count for test predicted {df[col[hidden_size + 1]].value_counts()}')
+    # label = list(df[col[hidden_size]].unique())
+    # label.sort()
+    # cm = confusion_matrix(np.array(df.iloc[:, hidden_size]), np.array(df.iloc[:, hidden_size+1]),labels = label)
+    # print(cm)
+    # # We will store the results in a dictionary for easy access later
+    # per_class_accuracies = {}
+    # for idx in range(len(label)):
+    #     true_negatives = np.sum(np.delete(np.delete(cm, idx, axis=0), idx, axis=1))
+    #     true_positives = cm[idx, idx]
+    #     per_class_accuracies[idx] = (true_positives + true_negatives) / np.sum(cm)
 
-    a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
-    # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
-    for i in range(len(a[0])):
-        print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
-    print("overall classification metric validation ")
-    p,r,f,supp = precision_recall_fscore_support(np.array(df1.iloc[:,hidden_size]), np.array(df1.iloc[:, hidden_size+1]), average='weighted')
-    acc = accuracy_score(np.array(df1.iloc[:,hidden_size]), np.array(df1.iloc[:, hidden_size+1]), normalize = True)
-    print(f" overall accuracy : {acc} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
-    print("overall classification metric in-distribution along with ood")
-    p,r,f,supp = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average='weighted')
-    acc = accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), normalize = True)
-    print(f" overall accuracy : {acc} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
-    print(f'for class ood: \ntotal number of actual samples: {a[3][0]}, \n accuracy : {per_class_accuracies[0]} ,\nprecision: {a[0][0]},\n recall : {a[1][0]}\n and f1 score {a[2][0]} \n')
+    # a = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average=None)
+    # # label = ['ethoca_fpf', 'tpf', 'auth_undisp']
+    # for i in range(len(a[0])):
+    #     print(f'for class {label[i]}: \ntotal number of actual samples: {a[3][i]}, \n accuracy : {per_class_accuracies[i]} ,\nprecision: {a[0][i]},\n recall : {a[1][i]}\n and f1 score {a[2][i]} \n')
+    # print("overall classification metric validation ")
+    # p,r,f,supp = precision_recall_fscore_support(np.array(df1.iloc[:,hidden_size]), np.array(df1.iloc[:, hidden_size+1]), average='weighted')
+    # acc = accuracy_score(np.array(df1.iloc[:,hidden_size]), np.array(df1.iloc[:, hidden_size+1]), normalize = True)
+    # print(f" overall accuracy : {acc} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
+    # print("overall classification metric in-distribution along with ood")
+    # p,r,f,supp = precision_recall_fscore_support(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), average='weighted')
+    # acc = accuracy_score(np.array(df.iloc[:,hidden_size]), np.array(df.iloc[:, hidden_size+1]), normalize = True)
+    # print(f" overall accuracy : {acc} , \n weighted precision: {p},\n weighted recall: {r},\n weighted f1-score: {f}\n")
+    # print(f'for class ood: \ntotal number of actual samples: {a[3][0]}, \n accuracy : {per_class_accuracies[0]} ,\nprecision: {a[0][0]},\n recall : {a[1][0]}\n and f1 score {a[2][0]} \n')
     
 if __name__ == '__main__':
     main()
