@@ -10,7 +10,8 @@ from sklearn.metrics import confusion_matrix
 from dataloader_table import get_table_data
 # from dataloader_table import get_table_data_with_iden
 from dataloader_table import get_table_data_with_iden_separate_sets
-from utils import compute_confscores, compute_metrics, print_ood_results, print_ood_results_total, save_and_evaluate_at_epoch
+from utils import compute_confscores, compute_metrics, print_ood_results, print_ood_results_total,\
+ save_and_evaluate_at_epoch, best_classification_metrics
 #from sklearn.semi_supervised import SelfTrainingClassifier # for Semi-Supervised learning
 #from datetime import date
 #from datetime import timedelta
@@ -94,6 +95,8 @@ def main():
         #idacc_list1, idacc_list2, idacc_list3, idacc_list4, idacc_list5, idacc_list6, idacc_list7, idacc_list8, idacc_list9 = [],[],[],[],[],[],[],[],[]
         #--------------------------TRAIN DATA--------------------------------------
         idacc_list, oodacc_list = [], []
+        prf_per_class, per_class_accuracies, p,r,f,supp, balanced_acc, label, shape_df = [],[],[],[],[],[],[],[],[]
+        python_script_name = 'our_metrics'
         #out_feat = []
         total_step = len(train_loader)
         for epoch in range(args.num_epochs):
@@ -202,8 +205,13 @@ def main():
                 #print(f' shape of ood test data :{len(out_feat_test1)}, {len(out_feat_test1[0])}')
             # print(f"centre from test: {model.centers}")
             # print(f"for test radii:{radii11}, \n alpha : {param1}")
-    
+            df1, df2, df3 = save_at_epoch(epoch, model, out_feat_train, out_feat_test, out_feat_test1, outdir)
+             dataset_type , a, per_class_accuracies, p,r,f,supp, acc, shape_df, label= evaluate_classification_metrics(df, 'TRAIN', outdir)
+               =evaluate_classification_metrics(pd.concat([df2,df3]), 'ID and OOD TEST', outdir)
+               = evaluate_classification_metrics(df3, 'OOD TEST', outdir)
+
         best_idacc = max(idacc_list)
+        # print(fold_idx, idacc_list)
         best_oodacc = oodacc_list[idacc_list.index(best_idacc)]
         save_and_evaluate_at_epoch(epoch, model, out_feat_train, out_feat_test, out_feat_test1, outdir)
         print('== {fidx:1d}-th fold results =='.format(fidx=fold_idx+1))
@@ -213,6 +221,9 @@ def main():
         
         best_idacc_list.append(best_idacc)
         best_oodacc_list.append(best_oodacc)
+
+    best_classification_metrics(dataset_type , prf_per_class, per_class_accuracies, p,r,f,supp, \
+        balanced_acc, label, python_script_name, outdir, shape_df, args )    
 
     print('== Final results ==')
     print('The best ID accuracy on "{idset:s}" test samples : {mean:6.2f} ({std:6.3f})'.format(idset=args.dataset, mean=np.mean(best_idacc_list), std=np.std(best_idacc_list)))
