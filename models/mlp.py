@@ -53,9 +53,103 @@ class MLP(nn.Module):
     def intermediate_forward(self, x, layer_index):
         out = self._forward(x)
         return out
+    
+## MLP Softmax Classifier Mahalnobis 
 
+class MLP_MNB(nn.Module):
+    def __init__(self, input_size, hidden_sizes, num_classes):
+        super(MLP_MNB, self).__init__()
+        self.input_size = input_size
+        self.hidden_sizes = hidden_sizes[:-1]
+        self.latent_size = hidden_sizes[-1]
+        self.num_classes = num_classes
 
-# MLP with a Deep-MCDD classifier  
+        self.build_fe()
+        self.init_fe_weights()
+
+    def build_fe(self):
+        layers = []
+        layer_sizes = [self.input_size] + self.hidden_sizes
+       
+        for i in range(len(layer_sizes)-1):
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(layer_sizes[-1], self.latent_size))
+        layers.append(nn.Linear(self.latent_size, self.num_classes))
+        self.layers = nn.ModuleList(layers)
+
+    def init_fe_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+
+    def _forward(self, x):
+        for i, layer in enumerate(self.layers[:-1]):
+            x = layer(x)
+        return x
+
+    def forward(self, x):
+        embed = self._forward(x)
+        score = self.layers[-1](embed)
+        return score, embed
+
+    def feature_list(self, x):
+        out = self._forward(x)
+        score = self.layers[-1](out)
+        return score, [out]
+
+    def intermediate_forward(self, x, layer_index):
+        out = self._forward(x)
+        return out
+
+class MLP_MNB_old(nn.Module):
+    def __init__(self, input_size, hidden_sizes, num_classes):
+        super(MLP_MNB, self).__init__()
+        self.input_size = input_size
+        self.hidden_sizes = hidden_sizes[:-1]
+        self.latent_size = hidden_sizes[-1]
+        self.num_classes = num_classes
+
+        self.build_fe()
+        self.init_fe_weights()
+
+    def build_fe(self):
+        layers = []
+        layer_sizes = [self.input_size] + self.hidden_sizes
+       
+        for i in range(len(layer_sizes)-1):
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(layer_sizes[-1], self.latent_size))
+        #layers.append(nn.Linear(self.latent_size, self.num_classes))
+        self.layers = nn.ModuleList(layers)
+
+    def init_fe_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+
+    def _forward(self, x):
+        for i, layer in enumerate(self.layers[:-1]):
+            x = layer(x)
+        return x
+
+    def forward(self, x):
+        out = self._forward(x)
+        embed = self.layers[-1](out)
+        return embed
+
+    def feature_list(self, x):
+        out = self._forward(x)
+        score = self.layers[-1](out)
+        return score, [out]
+
+    def intermediate_forward(self, x, layer_index):
+        out = self._forward(x)
+        return out
+
 
 class MLP_DeepMCDD(nn.Module):
     def __init__(self, input_size, hidden_sizes, num_classes):
@@ -103,6 +197,51 @@ class MLP_DeepMCDD(nn.Module):
         return scores,out_1, out
 
 
+
+class MLP_DeepMCDD_theirs(nn.Module):
+    def __init__(self, input_size, hidden_sizes, num_classes):
+        super(MLP_DeepMCDD_theirs, self).__init__()
+        self.input_size = input_size
+        self.hidden_sizes = hidden_sizes[:-1]
+        self.latent_size = hidden_sizes[-1]
+        self.num_classes = num_classes
+
+        self.centers = torch.nn.Parameter(torch.zeros([num_classes, self.latent_size]), requires_grad=True)
+        self.alphas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)
+        self.logsigmas = torch.nn.Parameter(torch.zeros(num_classes), requires_grad=True)
+        
+        self.build_fe()
+        self.init_fe_weights()
+
+    def build_fe(self):
+        layers = []
+        layer_sizes = [self.input_size] + self.hidden_sizes
+       
+        for i in range(len(layer_sizes)-1):
+            layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(layer_sizes[-1], self.latent_size))
+        self.layers = nn.ModuleList(layers)
+
+    def init_fe_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+        nn.init.xavier_uniform_(self.centers)
+        nn.init.zeros_(self.alphas)
+        nn.init.zeros_(self.logsigmas)
+
+    def _forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = layer(x)
+        return x
+
+    def forward(self, x):
+        out_1 = self._forward(x)
+        out = out_1.unsqueeze(dim=1).repeat([1, self.num_classes, 1])
+        scores = torch.sum((out - self.centers)**2, dim=2) / 2 / torch.exp(2 * F.relu(self.logsigmas)) + self.latent_size * F.relu(self.logsigmas)
+        return scores
 # MLP with a Soft-MCDD classifier  
 
 class MLP_SoftMCDD(nn.Module):
@@ -114,8 +253,8 @@ class MLP_SoftMCDD(nn.Module):
         self.num_classes = num_classes
         self.epsilon = epsilon
 
-        self.centers = torch.zeros([num_classes, self.latent_size]).cuda()
-        self.radii = torch.ones(num_classes).cuda()
+        self.centers = torch.zeros([num_classes, self.latent_size]).cpu()
+        self.radii = torch.ones(num_classes).cpu()
 
         self.build_fe()
         self.init_fe_weights()
@@ -143,12 +282,12 @@ class MLP_SoftMCDD(nn.Module):
 
     def update_centers(self, data_loader):
         class_outputs = {i : [] for i in range(self.num_classes)}
-        centers = torch.zeros([self.num_classes, self.latent_size]).cuda()
+        centers = torch.zeros([self.num_classes, self.latent_size]).cpu()
 
         with torch.no_grad():
             for data in data_loader:
                 inputs, labels = data
-                inputs, labels = inputs.cuda(), labels.cuda()
+                inputs, labels = inputs.cpu(), labels.cpu()
                 outputs = self._forward(inputs)
 
                 for k in range(self.num_classes):
@@ -168,7 +307,7 @@ class MLP_SoftMCDD(nn.Module):
         with torch.no_grad():
             for data in data_loader:
                 inputs, labels = data
-                inputs, labels = inputs.cuda(), labels.cuda()
+                inputs, labels = inputs.cpu(), labels.cpu()
                 scores = self.forward(inputs)
 
                 for k in range(self.num_classes):
@@ -179,18 +318,18 @@ class MLP_SoftMCDD(nn.Module):
             class_scores[k] = torch.cat(class_scores[k], dim=0)
             radii[k] = np.quantile(class_scores[k].cpu().numpy(), 1 - self.epsilon)
 
-        self.radii = torch.Tensor(radii).cuda()
+        self.radii = torch.Tensor(radii).cpu()
 
     def update_centers_and_radii(self, data_loader):
         class_outputs = {i : [] for i in range(self.num_classes)}
         class_scores = {i : [] for i in range(self.num_classes)}
-        centers = torch.zeros([self.num_classes, self.latent_size]).cuda()
+        centers = torch.zeros([self.num_classes, self.latent_size]).cpu()
         radii = np.zeros(self.num_classes)
 
         with torch.no_grad():
             for data in data_loader:
                 inputs, labels = data
-                inputs, labels = inputs.cuda(), labels.cuda()
+                inputs, labels = inputs.cpu(), labels.cpu()
                 outputs, scores = self._forward(inputs), self.forward(inputs)
 
                 for k in range(self.num_classes):
@@ -205,7 +344,7 @@ class MLP_SoftMCDD(nn.Module):
             radii[k] = np.quantile(class_scores[k].cpu().numpy(), 1 - self.epsilon)
 
         self.centers.data = centers
-        self.radii = torch.Tensor(radii).cuda()
+        self.radii = torch.Tensor(radii).cpu()
 
     def _forward(self, x):
         for i, layer in enumerate(self.layers):
